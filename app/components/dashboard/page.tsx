@@ -1,6 +1,10 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Calendar, Activity } from "lucide-react"
+import { BarChartCom } from '../Barchart'
+import { PieChartComp } from '../PieChartComp'
+import { RevenueChartComp } from '../RevenueChartComp'
+import { OrderChartComp } from '../OrderChartComp'
 const page = () => {
     return (
         <div className="space-y-6 m-5 w-full">
@@ -37,6 +41,15 @@ const page = () => {
                     </CardContent>
                 </Card>
             </div>
+            <div className="grid grid-cols-2 gap-4 w-full ">
+                <PieChartComp />
+                <OrderChartComp />
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full">
+                <RevenueChartComp />
+                <BarChartCom />
+            </div>
+
         </div>
     )
 }
