@@ -13,9 +13,9 @@ const page = () => {
     console.log("Login submitted", { email, password })
   }
   return (
-    <div className='flex flex-col justify-center items-center h-screen'>
+    <div className='flex flex-col justify-center items-center h-screen w-full'>
 
-      <form onSubmit={handleSubmit} className="space-y-4 w-[30%] border border-gray-400 p-5 rounded-xl">
+      <form onSubmit={handleSubmit} className="space-y-4 border border-gray-400 p-5 rounded-xl w-[500]">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input
