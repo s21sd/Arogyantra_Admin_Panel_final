@@ -32,12 +32,12 @@ const items = [
     },
     {
         title: "Wallet",
-        url: "#",
+        url: "/components/wallet",
         icon: Wallet,
     },
     {
         title: "Settings",
-        url: "#",
+        url: "/components/settings",
         icon: Settings,
     },
 
