@@ -4,13 +4,21 @@ import React, { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../Firebase'
+import { toast } from 'sonner'
 const page = () => {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Login submitted", { email, password })
+    const res = await signInWithEmailAndPassword(auth, email, password);
+    const user = res.user;
+    console.log(user);
+    toast.success("Login Successfully");
+
+
   }
   return (
     <div className='flex flex-col justify-center items-center h-screen w-full'>
