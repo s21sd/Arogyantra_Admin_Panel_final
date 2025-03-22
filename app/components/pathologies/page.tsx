@@ -4,11 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getDatabase, ref, onValue } from "firebase/database";
 import { database } from "../Firebase";
+import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const PathologyPage = () => {
-    const [pathologies, setPathologies] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [pathologies, setPathologies] = useState<any>([]);
+    const [loading, setLoading] = useState<any>(true);
+    const [error, setError] = useState<any>(null);
+    const router = useRouter();
+
+
 
     useEffect(() => {
         const pathologyRef = ref(database, "pathology");
@@ -60,7 +65,7 @@ const PathologyPage = () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pathologies.map((pathology, index) => (
+                        {pathologies.map((pathology: any, index: number) => (
                             <TableRow key={pathology.id} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                                 <TableCell className="p-4 font-medium">{pathology.path_name || "Unknown Name"}</TableCell>
                                 <TableCell className="p-4">{pathology.path_phoneNo || "N/A"}</TableCell>
@@ -77,19 +82,9 @@ const PathologyPage = () => {
                                         <img src={pathology.certificate[0]?.img} alt={pathology.path_name} className="w-16 h-16 rounded-lg shadow-md" />
                                     )}
                                 </TableCell>
-                                {/* <TableCell className="p-4">
-                                    <div className="flex flex-wrap gap-2">
-                                        {pathology.testItems && pathology.testItems.length > 0 ? (
-                                            pathology.testItems.map((item, index) => (
-                                                <span key={index} className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                                                    {item.name}: ₹{item.price}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="text-gray-500">No Tests</span>
-                                        )}
-                                    </div>
-                                </TableCell> */}
+                                <TableCell className="p-4">
+                                    <ArrowRight onClick={() => router.push(`/components/transactions/${pathology.uid || ""}`)} className="w-6 h-6 cursor-pointer text-gray-500" />
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
