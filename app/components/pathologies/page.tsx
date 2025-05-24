@@ -1,8 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getDatabase, ref, onValue } from "firebase/database";
+import { ref, onValue } from "firebase/database";
 import { database } from "../Firebase";
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -13,20 +12,19 @@ const PathologyPage = () => {
     const [error, setError] = useState<any>(null);
     const router = useRouter();
 
-
-
     useEffect(() => {
         const pathologyRef = ref(database, "pathology");
-
         const unsubscribe = onValue(
             pathologyRef,
             (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
-                    const pathologyArray = Object.keys(data).map((key) => ({
-                        id: key,
-                        ...data[key],
-                    }));
+                    const pathologyArray = Object.keys(data)
+                        .map((key) => ({
+                            id: key,
+                            ...data[key],
+                        }))
+                        .filter((p) => p.verified); // Only verified
                     setPathologies(pathologyArray);
                 } else {
                     setError("No pathologies found.");
@@ -38,18 +36,16 @@ const PathologyPage = () => {
                 setLoading(false);
             }
         );
-
         return () => unsubscribe();
     }, []);
 
     if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
     if (error) return <div className="text-red-500 text-center">{error}</div>;
-    if (pathologies.length === 0) return <div className="text-center">No pathology data available.</div>;
+    if (pathologies.length === 0) return <div className="text-center">No verified pathology data available.</div>;
 
     return (
         <div className="p-6 space-y-6 w-full">
-            <h1 className="text-3xl font-bold">All Pathologies</h1>
-
+            <h1 className="text-3xl font-bold">Pathologies</h1>
             <div className="flex justify-center w-full items-center mx-auto overflow-x-auto rounded-lg shadow-lg border border-gray-200">
                 <Table className=" bg-white">
                     <TableHeader className="bg-gray-100">
@@ -61,7 +57,6 @@ const PathologyPage = () => {
                             <TableHead className="p-4 font-semibold">Close Time</TableHead>
                             <TableHead className="p-4 font-semibold">Status</TableHead>
                             <TableHead className="p-4 font-semibold">Image</TableHead>
-                            {/* <TableHead className="p-4 font-semibold">Test Items</TableHead> */}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -79,7 +74,7 @@ const PathologyPage = () => {
                                 </TableCell>
                                 <TableCell className="p-4">
                                     {pathology.certificate && (
-                                        <img src={pathology.certificate[0]?.img} alt={pathology.path_name} className="w-16 h-16 rounded-lg shadow-md" />
+                                        <img src={pathology.certificate} alt={pathology.path_name} className="w-16 h-16 rounded-lg shadow-md" />
                                     )}
                                 </TableCell>
                                 <TableCell className="p-4">

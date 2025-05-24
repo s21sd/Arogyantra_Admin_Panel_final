@@ -31,6 +31,11 @@ const items = [
         icon: Hospital,
     },
     {
+        title: "Services",
+        url: "/components/services",
+        icon: ChartArea,
+    },
+    {
         title: "Wallet",
         url: "/components/wallet",
         icon: Wallet,
