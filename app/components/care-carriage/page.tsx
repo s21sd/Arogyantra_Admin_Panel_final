@@ -114,12 +114,23 @@ const CareCarriagePage = () => {
         setShowForm(false);
     };
 
-    // Update booking time and arrival time in transactions state
     async function updateBookingTime(id: string, newBookingTime: string) {
-        // Calculate new arrival time (10 mins before booking time)
-        let arrivalTime = "-";
-        if (newBookingTime) {
+        // Find the transaction to get the uid
+        const tx = transactions.find(t => t.id === id);
+        const uid = tx?.uid;
+        // Ensure booking time is stored as ISO string (e.g., 2025-06-10T10:44:00.000Z)
+        let isoBookingTime = newBookingTime;
+        if (newBookingTime && !newBookingTime.endsWith('Z')) {
+            // Convert 'YYYY-MM-DDTHH:mm' to ISO string
             const date = new Date(newBookingTime);
+            if (!isNaN(date.getTime())) {
+                isoBookingTime = date.toISOString();
+            }
+        }
+        // Calculate new arrival time (10 mins before booking time, also as ISO string)
+        let arrivalTime = "-";
+        if (isoBookingTime && isoBookingTime.endsWith('Z')) {
+            const date = new Date(isoBookingTime);
             if (!isNaN(date.getTime())) {
                 date.setMinutes(date.getMinutes() - 10);
                 arrivalTime = date.toISOString();
@@ -127,16 +138,24 @@ const CareCarriagePage = () => {
         }
         setTransactions(prev => prev.map(t =>
             t.id === id
-                ? { ...t, bookingTime: newBookingTime, arrivalTime }
+                ? { ...t, bookingTime: isoBookingTime, arrivalTime }
                 : t
         ));
-        // Update in Firebase
+        // Update in Firebase (transactions)
         try {
             const txRef = ref(database, `landlord/cc/transactions/${id}`);
             await update(txRef, {
-                bookingTime: newBookingTime,
+                bookingTime: isoBookingTime,
                 arrivalTime: arrivalTime,
             });
+            // Also update in users/{uid}/cc/{id} if uid exists
+            if (uid) {
+                const userTxRef = ref(database, `users/${uid}/cc/${id}`);
+                await update(userTxRef, {
+                    bookingTime: isoBookingTime,
+                    arrivalTime: arrivalTime,
+                });
+            }
         } catch (err) {
             alert("Failed to update booking time in Firebase.");
         }
@@ -177,13 +196,25 @@ const CareCarriagePage = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {transactions.map((tx, idx) => {
-                                        // Calculate arrival time
-                                        let arrivalTime = "-";
+                                        const formatDateTime = (iso: string) => {
+                                            if (!iso || iso === '-') return '-';
+                                            const date = new Date(iso);
+                                            if (isNaN(date.getTime())) return '-';
+                                            return date.toLocaleString('en-IN', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: '2-digit',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: true
+                                            });
+                                        };
+                                        let arrivalTime = '-';
                                         if (tx.bookingTime) {
                                             const date = new Date(tx.bookingTime);
                                             if (!isNaN(date.getTime())) {
                                                 date.setMinutes(date.getMinutes() - 10);
-                                                arrivalTime = date.toLocaleString();
+                                                arrivalTime = date.toISOString();
                                             }
                                         }
                                         return (
@@ -203,10 +234,10 @@ const CareCarriagePage = () => {
                                                             onChange={e => setEditBookingTime(e.target.value)}
                                                         />
                                                     ) : (
-                                                        tx.bookingTime || "-"
+                                                        formatDateTime(tx.bookingTime)
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="p-5 text-sm text-gray-600">{arrivalTime}</TableCell>
+                                                <TableCell className="p-5 text-sm text-gray-600">{formatDateTime(arrivalTime)}</TableCell>
                                                 <TableCell className="p-5 text-sm">
                                                     {tx.isCompleted ? (
                                                         <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold shadow">Completed</span>
