@@ -1,5 +1,5 @@
 "use client"
-import { AreaChart, Bot, Calendar, ChartArea, GitGraph, Home, Hospital, Inbox, Search, Settings, Wallet } from "lucide-react"
+import { AreaChart, Bot, Calendar, ChartArea, GitGraph, Home, Hospital, Inbox, LifeBuoy, Search, Settings, Wallet } from "lucide-react"
 
 import {
     Sidebar,
@@ -29,6 +29,11 @@ const items = [
         title: "Pathology",
         url: "/components/pathologies",
         icon: Hospital,
+    },
+    {
+        title: "Care Carriage",
+        url: "/components/care-carriage",
+        icon: LifeBuoy,
     },
     {
         title: "Services",
