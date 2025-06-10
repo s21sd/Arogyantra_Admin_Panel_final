@@ -30,6 +30,7 @@ const CareCarriagePage = () => {
     const [hospitalsError, setHospitalsError] = useState<string>("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editBookingTime, setEditBookingTime] = useState<string>("");
+    const [editStatus, setEditStatus] = useState<string>("pending");
 
     useEffect(() => {
         const ccRef = ref(database, "landlord/cc/transactions");
@@ -82,11 +83,18 @@ const CareCarriagePage = () => {
     }, []);
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value, type, checked } = e.target;
-        setForm((prev) => ({
-            ...prev,
-            [name]: type === "checkbox" ? checked : value,
-        }));
+        const { name, value } = e.target;
+        if (e.target instanceof HTMLInputElement && e.target.type === "checkbox") {
+            setForm((prev) => ({
+                ...prev,
+                [name]: e.target.checked,
+            }));
+        } else {
+            setForm((prev) => ({
+                ...prev,
+                [name]: value,
+            }));
+        }
     };
 
     const handleFormSubmit = (e: React.FormEvent) => {
@@ -136,12 +144,6 @@ const CareCarriagePage = () => {
                 arrivalTime = date.toISOString();
             }
         }
-        setTransactions(prev => prev.map(t =>
-            t.id === id
-                ? { ...t, bookingTime: isoBookingTime, arrivalTime }
-                : t
-        ));
-        // Update in Firebase (transactions)
         try {
             const txRef = ref(database, `landlord/cc/transactions/${id}`);
             await update(txRef, {
@@ -158,6 +160,45 @@ const CareCarriagePage = () => {
             }
         } catch (err) {
             alert("Failed to update booking time in Firebase.");
+        }
+    }
+
+    async function updateBookingTimeWithStatus(id: string, newBookingTime: string, newStatus: string) {
+        const tx = transactions.find(t => t.id === id);
+        const uid = tx?.uid;
+        let isoBookingTime = newBookingTime;
+        if (newBookingTime && !newBookingTime.endsWith('Z')) {
+            const date = new Date(newBookingTime);
+            if (!isNaN(date.getTime())) {
+                isoBookingTime = date.toISOString();
+            }
+        }
+        let arrivalTime = "-";
+        if (isoBookingTime && isoBookingTime.endsWith('Z')) {
+            const date = new Date(isoBookingTime);
+            if (!isNaN(date.getTime())) {
+                date.setMinutes(date.getMinutes() - 10);
+                arrivalTime = date.toISOString();
+            }
+        }
+        const isCompleted = newStatus === "completed";
+        try {
+            const txRef = ref(database, `landlord/cc/transactions/${id}`);
+            await update(txRef, {
+                bookingTime: isoBookingTime,
+                arrivalTime: arrivalTime,
+                isCompleted: isCompleted,
+            });
+            if (uid) {
+                const userTxRef = ref(database, `users/${uid}/cc/${id}`);
+                await update(userTxRef, {
+                    bookingTime: isoBookingTime,
+                    arrivalTime: arrivalTime,
+                    isCompleted: isCompleted,
+                });
+            }
+        } catch (err) {
+            alert("Failed to update booking time or status in Firebase.");
         }
     }
 
@@ -246,20 +287,51 @@ const CareCarriagePage = () => {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="p-5 text-sm">
-                                                    {editingId === tx.id ? (
-                                                        <>
-                                                            <Button size="sm" className="mr-2" onClick={() => {
-                                                                updateBookingTime(tx.id, editBookingTime);
+                                                    <Dialog open={editingId === tx.id} onOpenChange={open => { if (!open) setEditingId(null); }}>
+                                                        <DialogTrigger asChild>
+                                                            <Button size="sm" onClick={() => {
+                                                                setEditingId(tx.id);
+                                                                setEditBookingTime(tx.bookingTime || "");
+                                                                setEditStatus(tx.isCompleted ? "completed" : "pending");
+                                                            }}>Edit</Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent>
+                                                            <DialogHeader>
+                                                                <DialogTitle>Edit Booking</DialogTitle>
+                                                            </DialogHeader>
+                                                            <form onSubmit={async e => {
+                                                                e.preventDefault();
+                                                                await updateBookingTimeWithStatus(tx.id, editBookingTime, editStatus);
                                                                 setEditingId(null);
-                                                            }}>Save</Button>
-                                                            <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
-                                                        </>
-                                                    ) : (
-                                                        <Button size="sm" onClick={() => {
-                                                            setEditingId(tx.id);
-                                                            setEditBookingTime(tx.bookingTime || "");
-                                                        }}>Edit</Button>
-                                                    )}
+                                                            }} className="space-y-4">
+                                                                <div>
+                                                                    <label className="block font-medium mb-1">Booking Time</label>
+                                                                    <input
+                                                                        type="datetime-local"
+                                                                        className="w-full border rounded px-2 py-1"
+                                                                        value={editBookingTime}
+                                                                        onChange={e => setEditBookingTime(e.target.value)}
+                                                                        required
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block font-medium mb-1">Status</label>
+                                                                    <select
+                                                                        className="w-full border rounded px-2 py-1"
+                                                                        value={editStatus}
+                                                                        onChange={e => setEditStatus(e.target.value)}
+                                                                    >
+                                                                        <option value="pending">Pending</option>
+                                                                        <option value="completed">Completed</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <Button type="submit" size="sm">Save</Button>
+                                                                    <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                                                                </div>
+                                                            </form>
+                                                        </DialogContent>
+                                                    </Dialog>
                                                 </TableCell>
                                             </TableRow>
                                         );
