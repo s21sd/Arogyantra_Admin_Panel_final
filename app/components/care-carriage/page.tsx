@@ -8,6 +8,27 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ref, onValue, get, update } from "firebase/database";
 import { database } from "../Firebase";
 
+function isoToLocalDatetime(iso: string) {
+    if (!iso) return "";
+    const date = new Date(iso);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function localDatetimeToISTIso(local: string) {
+    if (!local) return '';
+    const [datePart, timePart] = local.split('T');
+    if (!datePart || !timePart) return '';
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = timePart.split(':').map(Number);
+    const localDate = new Date(year, month - 1, day, hour, minute);
+    const istOffset = 5.5 * 60; // in minutes
+    const utc = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000) + (istOffset * 60000));
+
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
+}
+
 const CareCarriagePage = () => {
     const [activeTab, setActiveTab] = useState("orders");
     const [showForm, setShowForm] = useState(false);
@@ -123,25 +144,23 @@ const CareCarriagePage = () => {
     };
 
     async function updateBookingTime(id: string, newBookingTime: string) {
-        // Find the transaction to get the uid
         const tx = transactions.find(t => t.id === id);
         const uid = tx?.uid;
-        // Ensure booking time is stored as ISO string (e.g., 2025-06-10T10:44:00.000Z)
+        // Store as IST ISO string
         let isoBookingTime = newBookingTime;
-        if (newBookingTime && !newBookingTime.endsWith('Z')) {
-            // Convert 'YYYY-MM-DDTHH:mm' to ISO string
-            const date = new Date(newBookingTime);
-            if (!isNaN(date.getTime())) {
-                isoBookingTime = date.toISOString();
-            }
+        if (newBookingTime && !newBookingTime.endsWith('Z') && !newBookingTime.includes('+05:30')) {
+            isoBookingTime = localDatetimeToISTIso(newBookingTime);
         }
-        // Calculate new arrival time (10 mins before booking time, also as ISO string)
+        // Calculate new arrival time (10 mins before booking time, also as IST ISO string)
         let arrivalTime = "-";
-        if (isoBookingTime && isoBookingTime.endsWith('Z')) {
-            const date = new Date(isoBookingTime);
+        if (isoBookingTime && (isoBookingTime.endsWith('+05:30') || isoBookingTime.endsWith('Z'))) {
+            // Parse as IST
+            let date = new Date(new Date(isoBookingTime).getTime());
             if (!isNaN(date.getTime())) {
                 date.setMinutes(date.getMinutes() - 10);
-                arrivalTime = date.toISOString();
+                arrivalTime = localDatetimeToISTIso(
+                    `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                );
             }
         }
         try {
@@ -150,7 +169,6 @@ const CareCarriagePage = () => {
                 bookingTime: isoBookingTime,
                 arrivalTime: arrivalTime,
             });
-            // Also update in users/{uid}/cc/{id} if uid exists
             if (uid) {
                 const userTxRef = ref(database, `users/${uid}/cc/${id}`);
                 await update(userTxRef, {
@@ -167,18 +185,17 @@ const CareCarriagePage = () => {
         const tx = transactions.find(t => t.id === id);
         const uid = tx?.uid;
         let isoBookingTime = newBookingTime;
-        if (newBookingTime && !newBookingTime.endsWith('Z')) {
-            const date = new Date(newBookingTime);
-            if (!isNaN(date.getTime())) {
-                isoBookingTime = date.toISOString();
-            }
+        if (newBookingTime && !newBookingTime.endsWith('Z') && !newBookingTime.includes('+05:30')) {
+            isoBookingTime = localDatetimeToISTIso(newBookingTime);
         }
         let arrivalTime = "-";
-        if (isoBookingTime && isoBookingTime.endsWith('Z')) {
-            const date = new Date(isoBookingTime);
+        if (isoBookingTime && (isoBookingTime.endsWith('+05:30') || isoBookingTime.endsWith('Z'))) {
+            let date = new Date(new Date(isoBookingTime).getTime());
             if (!isNaN(date.getTime())) {
                 date.setMinutes(date.getMinutes() - 10);
-                arrivalTime = date.toISOString();
+                arrivalTime = localDatetimeToISTIso(
+                    `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                );
             }
         }
         const isCompleted = newStatus === "completed";
@@ -237,25 +254,15 @@ const CareCarriagePage = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {transactions.map((tx, idx) => {
-                                        const formatDateTime = (iso: string) => {
-                                            if (!iso || iso === '-') return '-';
-                                            const date = new Date(iso);
-                                            if (isNaN(date.getTime())) return '-';
-                                            return date.toLocaleString('en-IN', {
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                hour12: true
-                                            });
-                                        };
                                         let arrivalTime = '-';
                                         if (tx.bookingTime) {
-                                            const date = new Date(tx.bookingTime);
-                                            if (!isNaN(date.getTime())) {
-                                                date.setMinutes(date.getMinutes() - 10);
-                                                arrivalTime = date.toISOString();
+                                            // Parse bookingTime as local (not UTC)
+                                            const booking = new Date(tx.bookingTime);
+                                            if (!isNaN(booking.getTime())) {
+                                                booking.setMinutes(booking.getMinutes() - 10);
+                                                // Format as 'YYYY-MM-DDTHH:mm:ss.sss' (same as bookingTime, but keep ms and no Z)
+                                                const pad = (n: number) => n.toString().padStart(2, '0');
+                                                arrivalTime = `${booking.getFullYear()}-${pad(booking.getMonth() + 1)}-${pad(booking.getDate())}T${pad(booking.getHours())}:${pad(booking.getMinutes())}:${pad(booking.getSeconds())}.000`;
                                             }
                                         }
                                         return (
@@ -275,10 +282,12 @@ const CareCarriagePage = () => {
                                                             onChange={e => setEditBookingTime(e.target.value)}
                                                         />
                                                     ) : (
-                                                        formatDateTime(tx.bookingTime)
+                                                        <span>{tx.bookingTime || '-'}</span>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="p-5 text-sm text-gray-600">{formatDateTime(arrivalTime)}</TableCell>
+                                                <TableCell className="p-5 text-sm text-gray-600">
+                                                    <span>{arrivalTime || '-'}</span>
+                                                </TableCell>
                                                 <TableCell className="p-5 text-sm">
                                                     {tx.isCompleted ? (
                                                         <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold shadow">Completed</span>
@@ -291,7 +300,7 @@ const CareCarriagePage = () => {
                                                         <DialogTrigger asChild>
                                                             <Button size="sm" onClick={() => {
                                                                 setEditingId(tx.id);
-                                                                setEditBookingTime(tx.bookingTime || "");
+                                                                setEditBookingTime(isoToLocalDatetime(tx.bookingTime || ""));
                                                                 setEditStatus(tx.isCompleted ? "completed" : "pending");
                                                             }}>Edit</Button>
                                                         </DialogTrigger>
