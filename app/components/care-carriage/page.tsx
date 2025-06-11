@@ -16,8 +16,10 @@ const CareCarriagePage = () => {
         name: "",
         address: "",
         number: "",
-        timing: "",
-        blockPeriod: "",
+        openTime: "",
+        closeTime: "",
+        blockPeriodFrom: "",
+        blockPeriodTo: "",
         coverageArea: "",
         latlog: "",
         isOpen: true,
@@ -84,11 +86,11 @@ const CareCarriagePage = () => {
     }, []);
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        if (e.target instanceof HTMLInputElement && e.target.type === "checkbox") {
+        const { name, value, type } = e.target as HTMLInputElement;
+        if (type === "checkbox") {
             setForm((prev) => ({
                 ...prev,
-                [name]: e.target.checked,
+                [name]: (e.target as HTMLInputElement).checked,
             }));
         } else {
             setForm((prev) => ({
@@ -98,29 +100,40 @@ const CareCarriagePage = () => {
         }
     };
 
-    const handleFormSubmit = (e: React.FormEvent) => {
+    const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!form.name.trim() || !form.address.trim() || !form.number.trim() || !form.timing.trim() || !form.blockPeriod.trim() || !form.coverageArea.trim() || !form.latlog.trim()) {
+        if (!form.name.trim() || !form.address.trim() || !form.number.trim() || !form.openTime.trim() || !form.closeTime.trim() || !form.blockPeriodFrom.trim() || !form.blockPeriodTo.trim() || !form.coverageArea.trim() || !form.latlog.trim()) {
             setFormError("All fields are required.");
             return;
         }
-        setHospitals((prev) => [
-            ...prev,
-            {
-                id: `H${prev.length + 1}`,
+        try {
+            // Save to Firebase
+            const hospitalsRef = ref(database, "care_carriage");
+            const newHospital = {
                 name: form.name,
                 address: form.address,
                 hospital_number: form.number,
-                hospital_timing: form.timing,
-                appointment_block_period: form.blockPeriod,
+                hospital_open_time: form.openTime,
+                hospital_close_time: form.closeTime,
+                appointment_block_period_from: form.blockPeriodFrom,
+                appointment_block_period_to: form.blockPeriodTo,
                 coverage_area: form.coverageArea,
                 lat_log: form.latlog,
                 isOpen: form.isOpen,
-            },
-        ]);
-        setForm({ name: "", address: "", number: "", timing: "", blockPeriod: "", coverageArea: "", latlog: "", isOpen: true });
-        setFormError("");
-        setShowForm(false);
+            };
+            await update(hospitalsRef, {
+                [form.name + "_" + Date.now()]: newHospital
+            });
+            setHospitals((prev) => [
+                ...prev,
+                { id: `H${prev.length + 1}`, ...newHospital },
+            ]);
+            setForm({ name: "", address: "", number: "", openTime: "", closeTime: "", blockPeriodFrom: "", blockPeriodTo: "", coverageArea: "", latlog: "", isOpen: true });
+            setFormError("");
+            setShowForm(false);
+        } catch (err) {
+            setFormError("Failed to register hospital. Please try again.");
+        }
     };
 
 
@@ -391,97 +404,150 @@ const CareCarriagePage = () => {
                             <DialogTrigger asChild>
                                 <Button onClick={() => setShowForm(true)}>Add Hospital</Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="max-w-4xl">
                                 <DialogHeader>
                                     <DialogTitle>Register Hospital</DialogTitle>
                                 </DialogHeader>
-                                <form className="space-y-4" onSubmit={handleFormSubmit}>
-                                    <div>
-                                        <label className="block font-medium mb-1">Hospital Name</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="name"
-                                            value={form.name}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Address</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="address"
-                                            value={form.address}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Number</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="number"
-                                            value={form.number}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Timing</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="timing"
-                                            value={form.timing}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Block Period</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="blockPeriod"
-                                            value={form.blockPeriod}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Coverage Area</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="coverageArea"
-                                            value={form.coverageArea}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium mb-1">Lat/Long</label>
-                                        <input
-                                            className="w-full border rounded px-2 py-1"
-                                            type="text"
-                                            name="latlog"
-                                            value={form.latlog}
-                                            onChange={handleFormChange}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            name="isOpen"
-                                            checked={form.isOpen}
-                                            onChange={handleFormChange}
-                                            className="accent-blue-600"
-                                        />
-                                        <label className="font-medium">Open</label>
+                                <form className="space-y-8" onSubmit={handleFormSubmit}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Hospital Name</label>
+                                            <input
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                type="text"
+                                                name="name"
+                                                value={form.name}
+                                                onChange={handleFormChange}
+                                                required
+                                                minLength={2}
+                                                maxLength={100}
+                                                placeholder="Enter hospital name"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Address</label>
+                                            <input
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                type="text"
+                                                name="address"
+                                                value={form.address}
+                                                onChange={handleFormChange}
+                                                required
+                                                minLength={5}
+                                                maxLength={200}
+                                                placeholder="Enter address"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Timing</label>
+                                            <div className="flex gap-3 items-center">
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="text-xs text-gray-500 mb-1">Open</span>
+                                                    <input
+                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                        type="time"
+                                                        name="openTime"
+                                                        value={form.openTime || ''}
+                                                        onChange={handleFormChange}
+                                                        required
+                                                    />
+                                                </div>
+                                                <span className="mx-1 text-gray-500 font-bold">to</span>
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="text-xs text-gray-500 mb-1">Close</span>
+                                                    <input
+                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                        type="time"
+                                                        name="closeTime"
+                                                        value={form.closeTime || ''}
+                                                        onChange={handleFormChange}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Block Period</label>
+                                            <div className="flex gap-3 items-center">
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="text-xs text-gray-500 mb-1">From</span>
+                                                    <input
+                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                        type="time"
+                                                        name="blockPeriodFrom"
+                                                        value={form.blockPeriodFrom || ''}
+                                                        onChange={handleFormChange}
+                                                        required
+                                                    />
+                                                </div>
+                                                <span className="mx-1 text-gray-500 font-bold">to</span>
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="text-xs text-gray-500 mb-1">To</span>
+                                                    <input
+                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                        type="time"
+                                                        name="blockPeriodTo"
+                                                        value={form.blockPeriodTo || ''}
+                                                        onChange={handleFormChange}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Coverage Area (km)</label>
+                                            <input
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                type="number"
+                                                name="coverageArea"
+                                                value={form.coverageArea}
+                                                onChange={handleFormChange}
+                                                required
+                                                min={1}
+                                                max={1000}
+                                                placeholder="e.g. 10"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Number</label>
+                                            <input
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                type="number"
+                                                name="number"
+                                                value={form.number}
+                                                onChange={handleFormChange}
+                                                required
+                                                minLength={10}
+                                                maxLength={15}
+                                                pattern="[0-9]+"
+                                                placeholder="Enter contact number"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block font-semibold mb-2 text-gray-800">Lat/Long</label>
+                                            <input
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                type="text"
+                                                name="latlog"
+                                                value={form.latlog}
+                                                onChange={handleFormChange}
+                                                required
+                                                pattern="^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$"
+                                                placeholder="e.g. 28.7041,77.1025"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-6">
+                                            <input
+                                                type="checkbox"
+                                                name="isOpen"
+                                                checked={form.isOpen}
+                                                onChange={handleFormChange}
+                                                className="accent-blue-600"
+                                            />
+                                            <label className="font-medium">Open</label>
+                                        </div>
                                     </div>
                                     {formError && <div className="text-red-500 text-sm">{formError}</div>}
                                     <Button type="submit" className="w-full">Register</Button>
