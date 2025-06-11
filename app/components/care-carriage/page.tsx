@@ -8,27 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ref, onValue, get, update } from "firebase/database";
 import { database } from "../Firebase";
 
-function isoToLocalDatetime(iso: string) {
-    if (!iso) return "";
-    const date = new Date(iso);
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function localDatetimeToISTIso(local: string) {
-    if (!local) return '';
-    const [datePart, timePart] = local.split('T');
-    if (!datePart || !timePart) return '';
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [hour, minute] = timePart.split(':').map(Number);
-    const localDate = new Date(year, month - 1, day, hour, minute);
-    const istOffset = 5.5 * 60; // in minutes
-    const utc = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000) + (istOffset * 60000));
-
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+05:30`;
-}
-
 const CareCarriagePage = () => {
     const [activeTab, setActiveTab] = useState("orders");
     const [showForm, setShowForm] = useState(false);
@@ -51,6 +30,7 @@ const CareCarriagePage = () => {
     const [hospitalsError, setHospitalsError] = useState<string>("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editBookingTime, setEditBookingTime] = useState<string>("");
+    const [editBookingDate, setEditBookingDate] = useState<string>("");
     const [editStatus, setEditStatus] = useState<string>("pending");
 
     useEffect(() => {
@@ -143,80 +123,45 @@ const CareCarriagePage = () => {
         setShowForm(false);
     };
 
-    async function updateBookingTime(id: string, newBookingTime: string) {
-        const tx = transactions.find(t => t.id === id);
-        const uid = tx?.uid;
-        // Store as IST ISO string
-        let isoBookingTime = newBookingTime;
-        if (newBookingTime && !newBookingTime.endsWith('Z') && !newBookingTime.includes('+05:30')) {
-            isoBookingTime = localDatetimeToISTIso(newBookingTime);
-        }
-        // Calculate new arrival time (10 mins before booking time, also as IST ISO string)
-        let arrivalTime = "-";
-        if (isoBookingTime && (isoBookingTime.endsWith('+05:30') || isoBookingTime.endsWith('Z'))) {
-            // Parse as IST
-            let date = new Date(new Date(isoBookingTime).getTime());
-            if (!isNaN(date.getTime())) {
-                date.setMinutes(date.getMinutes() - 10);
-                arrivalTime = localDatetimeToISTIso(
-                    `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-                );
-            }
-        }
-        try {
-            const txRef = ref(database, `landlord/cc/transactions/${id}`);
-            await update(txRef, {
-                bookingTime: isoBookingTime,
-                arrivalTime: arrivalTime,
-            });
-            if (uid) {
-                const userTxRef = ref(database, `users/${uid}/cc/${id}`);
-                await update(userTxRef, {
-                    bookingTime: isoBookingTime,
-                    arrivalTime: arrivalTime,
-                });
-            }
-        } catch (err) {
-            alert("Failed to update booking time in Firebase.");
-        }
-    }
 
-    async function updateBookingTimeWithStatus(id: string, newBookingTime: string, newStatus: string) {
+    async function updateBookingTimeWithStatus(id: string, newBookingTime: string, newStatus: string, newBookingDate: string) {
+        // Use selected date and time
+        const [yyyy, mm, dd] = newBookingDate.split('-');
+        const isoBookingTime = `${yyyy}-${mm}-${dd}T${newBookingTime}:00.000`;
+        // Calculate arrival time as booking time - 10 minutes
+        const [hour, minute] = newBookingTime.split(":");
+        const bookingDateObj = new Date(`${yyyy}-${mm}-${dd}T${hour}:${minute}:00`);
+        bookingDateObj.setMinutes(bookingDateObj.getMinutes() - 10);
+        const arrYYYY = bookingDateObj.getFullYear();
+        const arrMM = String(bookingDateObj.getMonth() + 1).padStart(2, '0');
+        const arrDD = String(bookingDateObj.getDate()).padStart(2, '0');
+        const arrHour = String(bookingDateObj.getHours()).padStart(2, '0');
+        const arrMinute = String(bookingDateObj.getMinutes()).padStart(2, '0');
+        const isoArrivalTime = `${arrYYYY}-${arrMM}-${arrDD}T${arrHour}:${arrMinute}:00.000`;
+
         const tx = transactions.find(t => t.id === id);
         const uid = tx?.uid;
-        let isoBookingTime = newBookingTime;
-        if (newBookingTime && !newBookingTime.endsWith('Z') && !newBookingTime.includes('+05:30')) {
-            isoBookingTime = localDatetimeToISTIso(newBookingTime);
-        }
-        let arrivalTime = "-";
-        if (isoBookingTime && (isoBookingTime.endsWith('+05:30') || isoBookingTime.endsWith('Z'))) {
-            let date = new Date(new Date(isoBookingTime).getTime());
-            if (!isNaN(date.getTime())) {
-                date.setMinutes(date.getMinutes() - 10);
-                arrivalTime = localDatetimeToISTIso(
-                    `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-                );
-            }
-        }
         const isCompleted = newStatus === "completed";
         try {
             const txRef = ref(database, `landlord/cc/transactions/${id}`);
             await update(txRef, {
                 bookingTime: isoBookingTime,
-                arrivalTime: arrivalTime,
+                arrivalTime: isoArrivalTime,
                 isCompleted: isCompleted,
             });
             if (uid) {
                 const userTxRef = ref(database, `users/${uid}/cc/${id}`);
                 await update(userTxRef, {
                     bookingTime: isoBookingTime,
-                    arrivalTime: arrivalTime,
+                    arrivalTime: isoArrivalTime,
                     isCompleted: isCompleted,
                 });
             }
         } catch (err) {
             alert("Failed to update booking time or status in Firebase.");
         }
+        // For now, just show the selected time in the correct format
+        // alert(`Selected time (Flutter format): ${isoBookingTime}\nStatus: ${newStatus}`);
     }
 
     return (
@@ -256,14 +201,7 @@ const CareCarriagePage = () => {
                                     {transactions.map((tx, idx) => {
                                         let arrivalTime = '-';
                                         if (tx.bookingTime) {
-                                            // Parse bookingTime as local (not UTC)
-                                            const booking = new Date(tx.bookingTime);
-                                            if (!isNaN(booking.getTime())) {
-                                                booking.setMinutes(booking.getMinutes() - 10);
-                                                // Format as 'YYYY-MM-DDTHH:mm:ss.sss' (same as bookingTime, but keep ms and no Z)
-                                                const pad = (n: number) => n.toString().padStart(2, '0');
-                                                arrivalTime = `${booking.getFullYear()}-${pad(booking.getMonth() + 1)}-${pad(booking.getDate())}T${pad(booking.getHours())}:${pad(booking.getMinutes())}:${pad(booking.getSeconds())}.000`;
-                                            }
+                                            arrivalTime = tx.arrivalTime;
                                         }
                                         return (
                                             <TableRow
@@ -274,19 +212,84 @@ const CareCarriagePage = () => {
                                                 <TableCell className="p-5 text-sm text-gray-600">{tx.userNumber || "-"}</TableCell>
                                                 <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{tx.totalAmount || "-"}</TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
-                                                    {editingId === tx.id ? (
-                                                        <input
-                                                            type="datetime-local"
-                                                            className="border rounded px-2 py-1 w-48"
-                                                            value={editBookingTime}
-                                                            onChange={e => setEditBookingTime(e.target.value)}
-                                                        />
-                                                    ) : (
-                                                        <span>{tx.bookingTime || '-'}</span>
-                                                    )}
+                                                    {(() => {
+                                                        let bookingTime = tx.bookingTime;
+                                                        if (editingId === tx.id) {
+                                                            // Show input and preview if editing
+                                                            return (
+                                                                <div>
+                                                                    <input
+                                                                        type="time"
+                                                                        className="border rounded px-2 py-1 w-48 mb-1"
+                                                                        value={editBookingTime}
+                                                                        onChange={e => setEditBookingTime(e.target.value)}
+                                                                    />
+                                                                    {editBookingTime && editBookingDate && (() => {
+                                                                        const [yyyy, mm, dd] = editBookingDate.split('-');
+                                                                        const [hour, minute] = editBookingTime.split(":");
+                                                                        const displayDate = `${dd} ${new Date(`${yyyy}-${mm}-01`).toLocaleString('en-US', { month: 'short' })} ${yyyy}`;
+                                                                        let hourNum = parseInt(hour, 10);
+                                                                        const ampm = hourNum >= 12 ? 'PM' : 'AM';
+                                                                        hourNum = hourNum % 12;
+                                                                        if (hourNum === 0) hourNum = 12;
+                                                                        const displayTime = `${hourNum}:${minute} ${ampm}`;
+                                                                        return (
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+                                                                                <span className="text-xs font-mono bg-blue-50 px-2 py-1 rounded text-blue-900 border border-blue-200 shadow-sm">
+                                                                                    {displayDate} {displayTime}
+                                                                                </span>
+                                                                                <span className="text-xs text-gray-500">(UI format)</span>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </div>
+                                                            );
+                                                        } else if (bookingTime) {
+                                                            // Format tx.bookingTime (ISO) to '11 Jun 2025 11:14 PM'
+                                                            const dateObj = new Date(bookingTime);
+                                                            const dd = String(dateObj.getDate()).padStart(2, '0');
+                                                            const mmm = dateObj.toLocaleString('en-US', { month: 'short' });
+                                                            const yyyy = dateObj.getFullYear();
+                                                            let hour = dateObj.getHours();
+                                                            const minute = String(dateObj.getMinutes()).padStart(2, '0');
+                                                            const ampm = hour >= 12 ? 'PM' : 'AM';
+                                                            let hour12 = hour % 12;
+                                                            if (hour12 === 0) hour12 = 12;
+                                                            const displayTime = `${hour12}:${minute} ${ampm}`;
+                                                            return (
+                                                                <span className="text-xs font-mono bg-blue-50 px-2 py-1 rounded text-blue-900 border border-blue-200 shadow-sm">
+                                                                    {dd} {mmm} {yyyy} {displayTime}
+                                                                </span>
+                                                            );
+                                                        } else {
+                                                            return <span>-</span>;
+                                                        }
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
-                                                    <span>{arrivalTime || '-'}</span>
+                                                    {(() => {
+                                                        let arrival = arrivalTime;
+                                                        if (arrival && arrival !== '-') {
+                                                            const dateObj = new Date(arrival);
+                                                            const dd = String(dateObj.getDate()).padStart(2, '0');
+                                                            const mmm = dateObj.toLocaleString('en-US', { month: 'short' });
+                                                            const yyyy = dateObj.getFullYear();
+                                                            let hour = dateObj.getHours();
+                                                            const minute = String(dateObj.getMinutes()).padStart(2, '0');
+                                                            const ampm = hour >= 12 ? 'PM' : 'AM';
+                                                            let hour12 = hour % 12;
+                                                            if (hour12 === 0) hour12 = 12;
+                                                            const displayTime = `${hour12}:${minute} ${ampm}`;
+                                                            return (
+                                                                <span className="text-xs font-mono bg-blue-50 px-2 py-1 rounded text-blue-900 border border-blue-200 shadow-sm">
+                                                                    {dd} {mmm} {yyyy} {displayTime}
+                                                                </span>
+                                                            );
+                                                        } else {
+                                                            return <span>-</span>;
+                                                        }
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell className="p-5 text-sm">
                                                     {tx.isCompleted ? (
@@ -300,7 +303,8 @@ const CareCarriagePage = () => {
                                                         <DialogTrigger asChild>
                                                             <Button size="sm" onClick={() => {
                                                                 setEditingId(tx.id);
-                                                                setEditBookingTime(isoToLocalDatetime(tx.bookingTime || ""));
+                                                                setEditBookingTime(tx.bookingTime ? new Date(tx.bookingTime).toISOString().slice(11, 16) : "");
+                                                                setEditBookingDate(tx.bookingTime ? new Date(tx.bookingTime).toISOString().slice(0, 10) : "");
                                                                 setEditStatus(tx.isCompleted ? "completed" : "pending");
                                                             }}>Edit</Button>
                                                         </DialogTrigger>
@@ -310,18 +314,47 @@ const CareCarriagePage = () => {
                                                             </DialogHeader>
                                                             <form onSubmit={async e => {
                                                                 e.preventDefault();
-                                                                await updateBookingTimeWithStatus(tx.id, editBookingTime, editStatus);
+                                                                await updateBookingTimeWithStatus(tx.id, editBookingTime, editStatus, editBookingDate);
                                                                 setEditingId(null);
                                                             }} className="space-y-4">
                                                                 <div>
+                                                                    <label className="block font-medium mb-1">Booking Date</label>
+                                                                    <input
+                                                                        type="date"
+                                                                        className="w-full border rounded px-2 py-1 mb-1"
+                                                                        value={editBookingDate}
+                                                                        onChange={e => setEditBookingDate(e.target.value)}
+                                                                        required
+                                                                    />
+                                                                </div>
+                                                                <div>
                                                                     <label className="block font-medium mb-1">Booking Time</label>
                                                                     <input
-                                                                        type="datetime-local"
-                                                                        className="w-full border rounded px-2 py-1"
+                                                                        type="time"
+                                                                        className="w-full border rounded px-2 py-1 mb-1"
                                                                         value={editBookingTime}
                                                                         onChange={e => setEditBookingTime(e.target.value)}
                                                                         required
                                                                     />
+                                                                    {editBookingTime && editBookingDate && (() => {
+                                                                        const [yyyy, mm, dd] = editBookingDate.split('-');
+                                                                        const [hour, minute] = editBookingTime.split(":");
+                                                                        const displayDate = `${dd} ${new Date(`${yyyy}-${mm}-01`).toLocaleString('en-US', { month: 'short' })} ${yyyy}`;
+                                                                        let hourNum = parseInt(hour, 10);
+                                                                        const ampm = hourNum >= 12 ? 'PM' : 'AM';
+                                                                        hourNum = hourNum % 12;
+                                                                        if (hourNum === 0) hourNum = 12;
+                                                                        const displayTime = `${hourNum}:${minute} ${ampm}`;
+                                                                        return (
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+                                                                                <span className="text-xs font-mono bg-blue-50 px-2 py-1 rounded text-blue-900 border border-blue-200 shadow-sm">
+                                                                                    {displayDate} {displayTime}
+                                                                                </span>
+                                                                                <span className="text-xs text-gray-500">(UI format)</span>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                                 <div>
                                                                     <label className="block font-medium mb-1">Status</label>
