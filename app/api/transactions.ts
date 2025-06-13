@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
 
-    res.status(200).json(transactions)
+    res.status(200).json(IDBTransaction)
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: "Internal Server Error" })
