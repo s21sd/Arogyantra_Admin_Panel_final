@@ -11,6 +11,13 @@ import Script from "next/script";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 
+declare global {
+    interface Window {
+        google?: typeof google;
+    }
+}
+declare var google: any;
+
 // Move interfaces to the top
 interface Hospital {
     id: string;
