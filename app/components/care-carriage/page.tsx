@@ -11,14 +11,11 @@ import Script from "next/script";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 
-// @ts-ignore
 declare global {
     interface Window {
-        google?: typeof google;
+        google?: unknown;
     }
 }
-// @ts-ignore
-declare let google: any;
 
 // Move interfaces to the top
 interface Hospital {
@@ -44,7 +41,7 @@ interface Transaction {
     totalAmount?: number;
     bookingTime?: string;
     arrivalTime?: string;
-    isCompleted?: boolean;
+    status?: "pending" | "confirm" | "completed";
     uid?: string;
 }
 
@@ -238,20 +235,19 @@ const CareCarriagePage: React.FC = () => {
 
         const tx = transactions.find(t => t.id === id);
         const uid = tx?.uid;
-        const isCompleted = newStatus === "completed";
         try {
             const txRef = ref(database, `landlord/cc/transactions/${id}`);
             await update(txRef, {
                 bookingTime: isoBookingTime,
                 arrivalTime: isoArrivalTime,
-                isCompleted: isCompleted,
+                status: newStatus,
             });
             if (uid) {
                 const userTxRef = ref(database, `users/${uid}/cc/${id}`);
                 await update(userTxRef, {
                     bookingTime: isoBookingTime,
                     arrivalTime: isoArrivalTime,
-                    isCompleted: isCompleted,
+                    status: newStatus,
                 });
             }
         } catch {
@@ -313,7 +309,7 @@ const CareCarriagePage: React.FC = () => {
                                             >
                                                 <TableCell className="p-5 text-sm font-semibold text-gray-700">{String(tx.transactionKey || tx.id)}</TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">{String(tx.userNumber || "-")}</TableCell>
-                                                <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{typeof tx.totalAmount === 'number' ? tx.totalAmount : '-'}</TableCell>
+                                                <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{typeof tx.totalAmount === 'string' ? tx.totalAmount : '-'}</TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
                                                     {(() => {
                                                         const bookingTime = tx.bookingTime;
@@ -395,8 +391,10 @@ const CareCarriagePage: React.FC = () => {
                                                     })()}
                                                 </TableCell>
                                                 <TableCell className="p-5 text-sm">
-                                                    {tx.isCompleted ? (
+                                                    {tx.status === "completed" ? (
                                                         <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold shadow">Completed</span>
+                                                    ) : tx.status === "confirm" ? (
+                                                        <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold shadow">Confirm</span>
                                                     ) : (
                                                         <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold shadow">Pending</span>
                                                     )}
@@ -408,7 +406,7 @@ const CareCarriagePage: React.FC = () => {
                                                                 setEditingId(tx.id);
                                                                 setEditBookingTime(tx.bookingTime ? new Date(tx.bookingTime).toISOString().slice(11, 16) : "");
                                                                 setEditBookingDate(tx.bookingTime ? new Date(tx.bookingTime).toISOString().slice(0, 10) : "");
-                                                                setEditStatus(tx.isCompleted ? "completed" : "pending");
+                                                                setEditStatus(tx.status || "pending");
                                                             }}>Edit</Button>
                                                         </DialogTrigger>
                                                         <DialogContent>
@@ -467,6 +465,7 @@ const CareCarriagePage: React.FC = () => {
                                                                         onChange={e => setEditStatus(e.target.value)}
                                                                     >
                                                                         <option value="pending">Pending</option>
+                                                                        <option value="confirm">Confirm</option>
                                                                         <option value="completed">Completed</option>
                                                                     </select>
                                                                 </div>
@@ -726,6 +725,7 @@ const CareCarriagePage: React.FC = () => {
                                 if (addressSearch && addressSearchLatLng) {
                                     setForm(prev => ({ ...prev, address: addressSearch, latlog: `${addressSearchLatLng.lat},${addressSearchLatLng.lng}` }));
                                     setShowAddressSearchModal(false);
+                                    setTimeout(() => setShowForm(true), 200);
                                 }
                             }} disabled={!addressSearchLatLng}>Select</Button>
                         </div>
@@ -733,10 +733,23 @@ const CareCarriagePage: React.FC = () => {
                             src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyDRADDlCkPQOHDyZeIcJ9nDCfmo94eo7Ig&libraries=places`}
                             strategy="afterInteractive"
                             onLoad={() => {
-                                if (typeof window !== 'undefined' && (window as typeof window & { google?: typeof google }).google) {
+                                if (
+                                    typeof window !== "undefined" &&
+                                    typeof window.google !== "undefined" &&
+                                    typeof (window.google as { maps?: unknown }).maps !== "undefined" &&
+                                    typeof (window.google as { maps: { places?: unknown } }).maps.places !== "undefined"
+                                ) {
                                     const input = document.getElementById("address-search-input") as HTMLInputElement;
                                     if (input) {
-                                        const autocomplete = new (window as typeof window & { google: typeof google }).google.maps.places.Autocomplete(input);
+                                        type AutocompleteType = {
+                                            getPlace: () => {
+                                                formatted_address?: string;
+                                                geometry?: { location: { lat: () => number; lng: () => number } };
+                                            };
+                                            addListener: (event: string, handler: () => void) => void;
+                                        };
+                                        const AutocompleteConstructor = (window.google as { maps: { places: { Autocomplete: new (input: HTMLInputElement) => AutocompleteType } } }).maps.places.Autocomplete;
+                                        const autocomplete = new AutocompleteConstructor(input);
                                         autocomplete.addListener("place_changed", function () {
                                             const place = autocomplete.getPlace();
                                             if (place.formatted_address) {
