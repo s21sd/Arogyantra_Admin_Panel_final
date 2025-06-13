@@ -11,11 +11,13 @@ import Script from "next/script";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 
+// @ts-ignore
 declare global {
     interface Window {
         google?: typeof google;
     }
 }
+// @ts-ignore
 declare let google: any;
 
 // Move interfaces to the top
