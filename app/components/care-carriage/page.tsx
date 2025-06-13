@@ -110,7 +110,7 @@ const CareCarriagePage: React.FC = () => {
                 } else {
                     setHospitals([]);
                 }
-            } catch (e) {
+            } catch {
                 setHospitalsError("Error loading hospitals.");
             }
             setHospitalsLoading(false);
