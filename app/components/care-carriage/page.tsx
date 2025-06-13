@@ -36,13 +36,27 @@ interface Transaction {
     bookingTime?: string;
     arrivalTime?: string;
     isCompleted?: boolean;
+    uid?: string;
+}
+
+interface HospitalForm {
+    name: string;
+    address: string;
+    number: string;
+    openTime: string;
+    closeTime: string;
+    blockPeriodFrom: string;
+    blockPeriodTo: string;
+    coverageArea: string;
+    latlog: string;
+    isOpen: boolean;
 }
 
 const CareCarriagePage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<string>("orders");
     const [showForm, setShowForm] = useState<boolean>(false);
     const [hospitals, setHospitals] = useState<Hospital[]>([]);
-    const [form, setForm] = useState<{ [key: string]: string | boolean }>({
+    const [form, setForm] = useState<HospitalForm>({
         name: "",
         address: "",
         number: "",
