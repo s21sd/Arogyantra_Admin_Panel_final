@@ -240,7 +240,7 @@ const CareCarriagePage: React.FC = () => {
 
     const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
-    const MapMarker: React.FC<{ lat: number; lng: number }> = ({ lat, lng }) => (
+    const MapMarker: React.FC<{ lat: number; lng: number }> = () => (
         <div style={{ color: 'red', fontWeight: 'bold', fontSize: 24 }}>
             •
         </div>

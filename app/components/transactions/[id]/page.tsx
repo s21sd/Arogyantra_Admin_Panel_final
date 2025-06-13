@@ -19,12 +19,16 @@ interface PaymentDetails {
     contact?: string;
     amount?: number;
 }
+interface TestItem {
+    name: string;
+    price: number;
+}
 interface Transaction {
     transactionKey: string;
     paymentDetails: PaymentDetails;
     totalAmount: number;
     initiatedAt: string;
-    selectedTests?: string[];
+    selectedTests?: TestItem[];
     address?: string;
     lat?: number;
     lng?: number;
@@ -307,10 +311,10 @@ function TransactionDetail({ transaction }: { transaction: Transaction }) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {selectedTests && selectedTests.map((test: unknown, index: number) => (
+                            {selectedTests && selectedTests.map((test: TestItem, index: number) => (
                                 <TableRow key={index}>
-                                    <TableCell>{(test as any).name}</TableCell>
-                                    <TableCell className="text-right">{(test as any).price}</TableCell>
+                                    <TableCell>{test.name}</TableCell>
+                                    <TableCell className="text-right">{test.price}</TableCell>
                                 </TableRow>
                             ))}
                             <TableRow>
