@@ -11,11 +11,38 @@ import Script from "next/script";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 
-const CareCarriagePage = () => {
-    const [activeTab, setActiveTab] = useState("orders");
-    const [showForm, setShowForm] = useState(false);
-    const [hospitals, setHospitals] = useState<any[]>([]);
-    const [form, setForm] = useState({
+// Move interfaces to the top
+interface Hospital {
+    id: string;
+    hid?: string;
+    hospital_name?: string;
+    name?: string;
+    hospital_address?: string;
+    address?: string;
+    hospital_number?: string;
+    number?: string;
+    hospital_timing?: string;
+    appointment_block_period?: string;
+    coverage_area?: string;
+    lat_log?: string;
+    isOpen?: boolean;
+}
+
+interface Transaction {
+    id: string;
+    transactionKey?: string;
+    userNumber?: string;
+    totalAmount?: number;
+    bookingTime?: string;
+    arrivalTime?: string;
+    isCompleted?: boolean;
+}
+
+const CareCarriagePage: React.FC = () => {
+    const [activeTab, setActiveTab] = useState<string>("orders");
+    const [showForm, setShowForm] = useState<boolean>(false);
+    const [hospitals, setHospitals] = useState<Hospital[]>([]);
+    const [form, setForm] = useState<{ [key: string]: string | boolean }>({
         name: "",
         address: "",
         number: "",
@@ -27,29 +54,19 @@ const CareCarriagePage = () => {
         latlog: "",
         isOpen: true,
     });
-    const [formError, setFormError] = useState("");
-    const [transactions, setTransactions] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string>("");
-    const [hospitalsLoading, setHospitalsLoading] = useState(true);
+    const [formError, setFormError] = useState<string>("");
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [hospitalsLoading, setHospitalsLoading] = useState<boolean>(true);
     const [hospitalsError, setHospitalsError] = useState<string>("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editBookingTime, setEditBookingTime] = useState<string>("");
     const [editBookingDate, setEditBookingDate] = useState<string>("");
     const [editStatus, setEditStatus] = useState<string>("pending");
 
-    const [selectedAddress, setSelectedAddress] = useState("");
-    const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
-    const [showMap, setShowMap] = useState(false);
-    const [mapLatLng, setMapLatLng] = useState<{ lat: number; lng: number } | null>(null);
-    const [showMapModal, setShowMapModal] = useState(false);
-
-    // 1. Add a state for user's current location
-    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-
     // Add state for address search modal
-    const [showAddressSearchModal, setShowAddressSearchModal] = useState(false);
-    const [addressSearch, setAddressSearch] = useState("");
+    const [showAddressSearchModal, setShowAddressSearchModal] = useState<boolean>(false);
+    const [addressSearch, setAddressSearch] = useState<string>("");
     const [addressSearchLatLng, setAddressSearchLatLng] = useState<{ lat: number; lng: number } | null>(null);
 
     useEffect(() => {
@@ -59,7 +76,7 @@ const CareCarriagePage = () => {
             (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
-                    const txArray = Object.keys(data).map((key) => ({
+                    const txArray: Transaction[] = Object.keys(data).map((key) => ({
                         id: key,
                         ...data[key],
                     }));
@@ -69,8 +86,7 @@ const CareCarriagePage = () => {
                 }
                 setLoading(false);
             },
-            (err) => {
-                setError("Failed to fetch transactions: " + err.message);
+            () => {
                 setLoading(false);
             }
         );
@@ -86,7 +102,7 @@ const CareCarriagePage = () => {
                 const snapshot = await get(hospitalsRef);
                 if (snapshot.exists()) {
                     const data = snapshot.val();
-                    const hospitalsArray = Object.keys(data).map((key) => ({
+                    const hospitalsArray: Hospital[] = Object.keys(data).map((key) => ({
                         id: key,
                         ...data[key],
                     }));
@@ -94,29 +110,12 @@ const CareCarriagePage = () => {
                 } else {
                     setHospitals([]);
                 }
-            } catch (e: any) {
-                setHospitalsError("Error loading hospitals: " + e.message);
+            } catch (e) {
+                setHospitalsError("Error loading hospitals.");
             }
             setHospitalsLoading(false);
         }
         fetchHospitals();
-    }, []);
-
-    // 2. Get user's current location on mount
-    useEffect(() => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setUserLocation({
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    });
-                },
-                (error) => {
-                    // Optionally handle error
-                }
-            );
-        }
     }, []);
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -136,14 +135,22 @@ const CareCarriagePage = () => {
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!form.name.trim() || !form.address.trim() || !form.number.trim() || !form.openTime.trim() || !form.closeTime.trim() || !form.blockPeriodFrom.trim() || !form.blockPeriodTo.trim() || !form.coverageArea.trim() || !form.latlog.trim()) {
+        if (
+            typeof form.name !== 'string' || !form.name.trim() ||
+            typeof form.address !== 'string' || !form.address.trim() ||
+            typeof form.number !== 'string' || !form.number.trim() ||
+            typeof form.openTime !== 'string' || !form.openTime.trim() ||
+            typeof form.closeTime !== 'string' || !form.closeTime.trim() ||
+            typeof form.blockPeriodFrom !== 'string' || !form.blockPeriodFrom.trim() ||
+            typeof form.blockPeriodTo !== 'string' || !form.blockPeriodTo.trim() ||
+            typeof form.coverageArea !== 'string' || !form.coverageArea.trim() ||
+            typeof form.latlog !== 'string' || !form.latlog.trim()
+        ) {
             setFormError("All fields are required.");
             return;
         }
         try {
-            // Save to Firebase with push and correct field format
             const hospitalsRef = ref(database, "care_carriage");
-            // Use push to generate a unique key
             const newHospitalRef = push(hospitalsRef);
             const hid = newHospitalRef.key;
             const hospitalData = {
@@ -151,8 +158,8 @@ const CareCarriagePage = () => {
                 hospital_name: form.name,
                 hospital_address: form.address,
                 hospital_number: form.number,
-                hospital_timing: `${formatTime(form.openTime)} - ${formatTime(form.closeTime)}`,
-                appointment_block_period: `${formatTime(form.blockPeriodFrom)} - ${formatTime(form.blockPeriodTo)}`,
+                hospital_timing: `${formatTime(form.openTime as string)} - ${formatTime(form.closeTime as string)}`,
+                appointment_block_period: `${formatTime(form.blockPeriodFrom as string)} - ${formatTime(form.blockPeriodTo as string)}`,
                 coverage_area: `${form.coverageArea} Km`,
                 lat_log: form.latlog,
                 isOpen: form.isOpen,
@@ -162,7 +169,7 @@ const CareCarriagePage = () => {
                 const hospitalsSnapshot = await get(hospitalsRef);
                 if (hospitalsSnapshot.exists()) {
                     const data = hospitalsSnapshot.val();
-                    const hospitalsArray = Object.keys(data).map((key) => ({
+                    const hospitalsArray: Hospital[] = Object.keys(data).map((key) => ({
                         id: key,
                         ...data[key],
                     }));
@@ -170,14 +177,13 @@ const CareCarriagePage = () => {
                 } else {
                     setHospitals([]);
                 }
-            } catch (fetchErr) {
+            } catch {
                 // Optionally handle fetch error
             }
             setForm({ name: "", address: "", number: "", openTime: "", closeTime: "", blockPeriodFrom: "", blockPeriodTo: "", coverageArea: "", latlog: "", isOpen: true });
             setFormError("");
             setShowForm(false);
-            // Optionally, refresh hospitals list
-        } catch (err) {
+        } catch {
             setFormError("Failed to register hospital. Please try again.");
         }
     };
@@ -232,17 +238,9 @@ const CareCarriagePage = () => {
         // alert(`Selected time (Flutter format): ${isoBookingTime}\nStatus: ${newStatus}`);
     }
 
-    // Google Maps handler
-    function handleAddressClick(address: string) {
-        setShowAddressSearchModal(true);
-        setAddressSearch("");
-        setAddressSearchLatLng(null);
-    }
-
     const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
-    // Map marker component
-    const MapMarker = ({ lat }: { lat: number; lng: number }) => (
+    const MapMarker: React.FC<{ lat: number; lng: number }> = ({ lat, lng }) => (
         <div style={{ color: 'red', fontWeight: 'bold', fontSize: 24 }}>
             •
         </div>
@@ -260,8 +258,6 @@ const CareCarriagePage = () => {
                 <TabsContent value="orders">
                     {loading ? (
                         <div className="text-center py-8">Loading transactions...</div>
-                    ) : error ? (
-                        <div className="text-center text-red-500 py-8">{error}</div>
                     ) : transactions.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <Image src="/file.svg" alt="No Data" width={96} height={96} className="w-24 h-24 mb-4 opacity-60" />
@@ -282,9 +278,9 @@ const CareCarriagePage = () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {transactions.map((tx, idx) => {
+                                    {transactions.map((tx: Transaction, idx: number) => {
                                         let arrivalTime = '-';
-                                        if (tx.bookingTime) {
+                                        if (typeof tx.arrivalTime === 'string' && tx.arrivalTime) {
                                             arrivalTime = tx.arrivalTime;
                                         }
                                         return (
@@ -292,9 +288,9 @@ const CareCarriagePage = () => {
                                                 key={tx.id}
                                                 className={`transition-all duration-200 ${idx % 2 === 0 ? 'bg-blue-50' : 'bg-white'} hover:scale-[1.01] hover:shadow-lg hover:bg-blue-100/60`}
                                             >
-                                                <TableCell className="p-5 text-sm font-semibold text-gray-700">{tx.transactionKey || tx.id}</TableCell>
-                                                <TableCell className="p-5 text-sm text-gray-600">{tx.userNumber || "-"}</TableCell>
-                                                <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{tx.totalAmount || "-"}</TableCell>
+                                                <TableCell className="p-5 text-sm font-semibold text-gray-700">{String(tx.transactionKey || tx.id)}</TableCell>
+                                                <TableCell className="p-5 text-sm text-gray-600">{String(tx.userNumber || "-")}</TableCell>
+                                                <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{typeof tx.totalAmount === 'number' ? tx.totalAmount : '-'}</TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
                                                     {(() => {
                                                         const bookingTime = tx.bookingTime;
@@ -329,7 +325,7 @@ const CareCarriagePage = () => {
                                                                     })()}
                                                                 </div>
                                                             );
-                                                        } else if (bookingTime) {
+                                                        } else if (typeof bookingTime === 'string' && bookingTime) {
                                                             // Format tx.bookingTime (ISO) to '11 Jun 2025 11:14 PM'
                                                             const dateObj = new Date(bookingTime);
                                                             const dd = String(dateObj.getDate()).padStart(2, '0');
@@ -354,7 +350,7 @@ const CareCarriagePage = () => {
                                                 <TableCell className="p-5 text-sm text-gray-600">
                                                     {(() => {
                                                         const arrival = arrivalTime;
-                                                        if (arrival && arrival !== '-') {
+                                                        if (typeof arrival === 'string' && arrival !== '-') {
                                                             const dateObj = new Date(arrival);
                                                             const dd = String(dateObj.getDate()).padStart(2, '0');
                                                             const mmm = dateObj.toLocaleString('en-US', { month: 'short' });
@@ -706,11 +702,7 @@ const CareCarriagePage = () => {
                             <Button type="button" onClick={() => {
                                 if (addressSearch && addressSearchLatLng) {
                                     setForm(prev => ({ ...prev, address: addressSearch, latlog: `${addressSearchLatLng.lat},${addressSearchLatLng.lng}` }));
-                                    setSelectedAddress(addressSearch);
-                                    setSelectedLatLng(addressSearchLatLng);
-                                    setMapLatLng(addressSearchLatLng);
                                     setShowAddressSearchModal(false);
-                                    setTimeout(() => setShowForm(true), 200);
                                 }
                             }} disabled={!addressSearchLatLng}>Select</Button>
                         </div>
@@ -718,10 +710,10 @@ const CareCarriagePage = () => {
                             src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyDRADDlCkPQOHDyZeIcJ9nDCfmo94eo7Ig&libraries=places`}
                             strategy="afterInteractive"
                             onLoad={() => {
-                                if (typeof window !== 'undefined' && (window as typeof window & { google?: any }).google) {
+                                if (typeof window !== 'undefined' && (window as typeof window & { google?: typeof google }).google) {
                                     const input = document.getElementById("address-search-input") as HTMLInputElement;
                                     if (input) {
-                                        const autocomplete = new (window as typeof window & { google: any }).google.maps.places.Autocomplete(input);
+                                        const autocomplete = new (window as typeof window & { google: typeof google }).google.maps.places.Autocomplete(input);
                                         autocomplete.addListener("place_changed", function () {
                                             const place = autocomplete.getPlace();
                                             if (place.formatted_address) {

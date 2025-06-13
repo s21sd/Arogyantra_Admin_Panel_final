@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../Firebase'
 import { toast } from 'sonner'
-const page = () => {
+function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
@@ -55,4 +55,4 @@ const page = () => {
   )
 }
 
-export default page
+export default LoginPage

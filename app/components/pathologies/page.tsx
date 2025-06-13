@@ -5,11 +5,29 @@ import { ref, onValue } from "firebase/database";
 import { database } from "../Firebase";
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+
+// Define a Pathology type and use it instead of any
+interface Pathology {
+    id: string;
+    path_name: string;
+    path_phoneNo: string;
+    path_address: string;
+    path_openTime: string;
+    path_closeTime: string;
+    verified: boolean;
+    isOpen: boolean;
+    certificate?: string;
+    uid: string;
+    lat: number;
+    lng: number;
+    tests?: { testName: string; price: number }[];
+}
 
 const PathologyPage = () => {
-    const [pathologies, setPathologies] = useState<any>([]);
-    const [loading, setLoading] = useState<any>(true);
-    const [error, setError] = useState<any>(null);
+    const [pathologies, setPathologies] = useState<Pathology[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -60,7 +78,7 @@ const PathologyPage = () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pathologies.map((pathology: any, index: number) => (
+                        {pathologies.map((pathology: Pathology, index: number) => (
                             <TableRow key={pathology.id} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                                 <TableCell className="p-4 font-medium">{pathology.path_name || "Unknown Name"}</TableCell>
                                 <TableCell className="p-4">{pathology.path_phoneNo || "N/A"}</TableCell>
@@ -74,7 +92,7 @@ const PathologyPage = () => {
                                 </TableCell>
                                 <TableCell className="p-4">
                                     {pathology.certificate && (
-                                        <img src={pathology.certificate} alt={pathology.path_name} className="w-16 h-16 rounded-lg shadow-md" />
+                                        <Image src={pathology.certificate} alt={pathology.path_name} width={64} height={64} className="rounded-lg shadow-md" />
                                     )}
                                 </TableCell>
                                 <TableCell className="p-4">
