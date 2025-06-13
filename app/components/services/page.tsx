@@ -6,12 +6,34 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { ref, onValue, update } from "firebase/database";
 import { database } from "../Firebase";
+import Image from "next/image";
+
+interface TestItem {
+    testName: string;
+    price: number;
+}
+
+interface Pathology {
+    id: string;
+    path_name: string;
+    path_phoneNo: string;
+    path_address: string;
+    path_openTime: string;
+    path_closeTime: string;
+    verified: boolean;
+    isOpen: boolean;
+    certificate?: string;
+    uid: string;
+    lat: number;
+    lng: number;
+    tests?: TestItem[];
+}
 
 const ServicesPage = () => {
-    const [pathologies, setPathologies] = useState<any>([]);
+    const [pathologies, setPathologies] = useState<Pathology[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<any>(null);
-    const [selectedPathology, setSelectedPathology] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [selectedPathology, setSelectedPathology] = useState<Pathology | null>(null);
 
     useEffect(() => {
         const pathologyRef = ref(database, "pathology");
@@ -42,7 +64,7 @@ const ServicesPage = () => {
 
     const handleVerify = async (id: string) => {
         await update(ref(database, `pathology/${id}`), { verified: true });
-        setPathologies((prev: any[]) => prev.filter((p) => p.id !== id));
+        setPathologies((prev: Pathology[]) => prev.filter((p) => p.id !== id));
     };
 
     if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
@@ -67,7 +89,7 @@ const ServicesPage = () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pathologies.map((pathology: any, index: number) => (
+                        {pathologies.map((pathology: Pathology, index: number) => (
                             <TableRow key={pathology.id} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                                 <TableCell className="p-4 font-medium">{pathology.path_name || "Unknown Name"}</TableCell>
                                 <TableCell className="p-4">{pathology.path_phoneNo || "N/A"}</TableCell>
@@ -81,7 +103,13 @@ const ServicesPage = () => {
                                 </TableCell>
                                 <TableCell className="p-4">
                                     {pathology.certificate && (
-                                        <img src={pathology.certificate} alt={pathology.path_name} className="w-16 h-16 rounded-lg shadow-md" />
+                                        <Image
+                                            src={pathology.certificate}
+                                            alt={pathology.path_name}
+                                            width={64}
+                                            height={64}
+                                            className="w-16 h-16 rounded-lg shadow-md"
+                                        />
                                     )}
                                 </TableCell>
                                 <TableCell className="p-4 flex flex-col gap-2">
@@ -123,16 +151,20 @@ const ServicesPage = () => {
                                                                     {selectedPathology.certificate && (
                                                                         <Dialog>
                                                                             <DialogTrigger asChild>
-                                                                                <img
+                                                                                <Image
                                                                                     src={selectedPathology.certificate}
                                                                                     alt={selectedPathology.path_name}
+                                                                                    width={128}
+                                                                                    height={128}
                                                                                     className="w-32 h-32 rounded-lg shadow-md mb-2 cursor-pointer transition-transform hover:scale-105"
                                                                                 />
                                                                             </DialogTrigger>
                                                                             <DialogContent className="flex items-center justify-center bg-transparent shadow-none">
-                                                                                <img
+                                                                                <Image
                                                                                     src={selectedPathology.certificate}
                                                                                     alt={selectedPathology.path_name}
+                                                                                    width={512}
+                                                                                    height={512}
                                                                                     className="max-w-[90vw] max-h-[80vh] rounded-lg border-4 border-white shadow-2xl"
                                                                                 />
                                                                             </DialogContent>
@@ -156,7 +188,7 @@ const ServicesPage = () => {
                                                                         </TableRow>
                                                                     </TableHeader>
                                                                     <TableBody>
-                                                                        {selectedPathology.tests.map((test: any, idx: number) => (
+                                                                        {selectedPathology.tests.map((test: TestItem, idx: number) => (
                                                                             <TableRow key={idx}>
                                                                                 <TableCell>{test.testName}</TableCell>
                                                                                 <TableCell>{test.price}</TableCell>

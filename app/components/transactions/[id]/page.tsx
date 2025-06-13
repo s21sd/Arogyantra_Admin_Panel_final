@@ -307,10 +307,10 @@ function TransactionDetail({ transaction }: { transaction: Transaction }) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {selectedTests && selectedTests.map((test: any, index: number) => (
+                            {selectedTests && selectedTests.map((test: unknown, index: number) => (
                                 <TableRow key={index}>
-                                    <TableCell>{test.name}</TableCell>
-                                    <TableCell className="text-right">{test.price}</TableCell>
+                                    <TableCell>{(test as any).name}</TableCell>
+                                    <TableCell className="text-right">{(test as any).price}</TableCell>
                                 </TableRow>
                             ))}
                             <TableRow>
