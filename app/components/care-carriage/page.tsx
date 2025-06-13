@@ -9,6 +9,7 @@ import { ref, onValue, get, update, push, set } from "firebase/database";
 import { database } from "../Firebase";
 import Script from "next/script";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 
 const CareCarriagePage = () => {
     const [activeTab, setActiveTab] = useState("orders");
@@ -37,7 +38,6 @@ const CareCarriagePage = () => {
     const [editBookingDate, setEditBookingDate] = useState<string>("");
     const [editStatus, setEditStatus] = useState<string>("pending");
 
-    // Add this state for Google Maps address
     const [selectedAddress, setSelectedAddress] = useState("");
     const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
     const [showMap, setShowMap] = useState(false);
@@ -242,7 +242,7 @@ const CareCarriagePage = () => {
     const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
 
     // Map marker component
-    const MapMarker = ({ lat, lng }: { lat: number; lng: number }) => (
+    const MapMarker = ({ lat }: { lat: number; lng: number }) => (
         <div style={{ color: 'red', fontWeight: 'bold', fontSize: 24 }}>
             •
         </div>
@@ -264,7 +264,7 @@ const CareCarriagePage = () => {
                         <div className="text-center text-red-500 py-8">{error}</div>
                     ) : transactions.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
-                            <img src="/file.svg" alt="No Data" className="w-24 h-24 mb-4 opacity-60" />
+                            <Image src="/file.svg" alt="No Data" width={96} height={96} className="w-24 h-24 mb-4 opacity-60" />
                             <div className="text-lg font-semibold text-gray-500">No transactions found.</div>
                         </div>
                     ) : (
@@ -297,7 +297,7 @@ const CareCarriagePage = () => {
                                                 <TableCell className="p-5 text-sm text-blue-700 font-bold">₹{tx.totalAmount || "-"}</TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
                                                     {(() => {
-                                                        let bookingTime = tx.bookingTime;
+                                                        const bookingTime = tx.bookingTime;
                                                         if (editingId === tx.id) {
                                                             // Show input and preview if editing
                                                             return (
@@ -335,7 +335,7 @@ const CareCarriagePage = () => {
                                                             const dd = String(dateObj.getDate()).padStart(2, '0');
                                                             const mmm = dateObj.toLocaleString('en-US', { month: 'short' });
                                                             const yyyy = dateObj.getFullYear();
-                                                            let hour = dateObj.getHours();
+                                                            const hour = dateObj.getHours();
                                                             const minute = String(dateObj.getMinutes()).padStart(2, '0');
                                                             const ampm = hour >= 12 ? 'PM' : 'AM';
                                                             let hour12 = hour % 12;
@@ -353,13 +353,13 @@ const CareCarriagePage = () => {
                                                 </TableCell>
                                                 <TableCell className="p-5 text-sm text-gray-600">
                                                     {(() => {
-                                                        let arrival = arrivalTime;
+                                                        const arrival = arrivalTime;
                                                         if (arrival && arrival !== '-') {
                                                             const dateObj = new Date(arrival);
                                                             const dd = String(dateObj.getDate()).padStart(2, '0');
                                                             const mmm = dateObj.toLocaleString('en-US', { month: 'short' });
                                                             const yyyy = dateObj.getFullYear();
-                                                            let hour = dateObj.getHours();
+                                                            const hour = dateObj.getHours();
                                                             const minute = String(dateObj.getMinutes()).padStart(2, '0');
                                                             const ampm = hour >= 12 ? 'PM' : 'AM';
                                                             let hour12 = hour % 12;
@@ -635,7 +635,7 @@ const CareCarriagePage = () => {
                         <div className="text-center text-red-500 py-8">{hospitalsError}</div>
                     ) : hospitals.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
-                            <img src="/globe.svg" alt="No Hospitals" className="w-24 h-24 mb-4 opacity-60" />
+                            <Image src="/globe.svg" alt="No Hospitals" width={96} height={96} className="w-24 h-24 mb-4 opacity-60" />
                             <div className="text-lg font-semibold text-gray-500">No hospitals found.</div>
                         </div>
                     ) : (
@@ -718,11 +718,10 @@ const CareCarriagePage = () => {
                             src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyDRADDlCkPQOHDyZeIcJ9nDCfmo94eo7Ig&libraries=places`}
                             strategy="afterInteractive"
                             onLoad={() => {
-                                if ((window as any).google) {
+                                if (typeof window !== 'undefined' && (window as typeof window & { google?: any }).google) {
                                     const input = document.getElementById("address-search-input") as HTMLInputElement;
                                     if (input) {
-                                        // Remove types: ["geocode"] to allow all places
-                                        const autocomplete = new (window as any).google.maps.places.Autocomplete(input);
+                                        const autocomplete = new (window as typeof window & { google: any }).google.maps.places.Autocomplete(input);
                                         autocomplete.addListener("place_changed", function () {
                                             const place = autocomplete.getPlace();
                                             if (place.formatted_address) {

@@ -11,9 +11,30 @@ import { useParams } from "next/navigation"
 import { database } from "../../Firebase"
 import { onValue, ref } from "firebase/database"
 
+// Extend PaymentDetails and Transaction interfaces to include all used properties
+interface PaymentDetails {
+    email?: string;
+    status?: string;
+    id?: string;
+    contact?: string;
+    amount?: number;
+}
+interface Transaction {
+    transactionKey: string;
+    paymentDetails: PaymentDetails;
+    totalAmount: number;
+    initiatedAt: string;
+    selectedTests?: string[];
+    address?: string;
+    lat?: number;
+    lng?: number;
+    pathologyId?: string;
+    uid?: string;
+}
+
 function TransactionList() {
     const { id } = useParams()
-    const [transactions, setTransactions] = useState<any[]>([])
+    const [transactions, setTransactions] = useState<Transaction[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
     const [currentPage, setCurrentPage] = useState(1)
@@ -191,7 +212,7 @@ function TransactionList() {
 
 export default TransactionList
 
-function TransactionDetail({ transaction }: { transaction: any }) {
+function TransactionDetail({ transaction }: { transaction: Transaction }) {
     const { paymentDetails, selectedTests } = transaction
     const date = new Date(transaction.initiatedAt)
     const formattedDate = date.toLocaleString()
@@ -286,7 +307,7 @@ function TransactionDetail({ transaction }: { transaction: any }) {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {selectedTests.map((test: any, index: number) => (
+                            {selectedTests && selectedTests.map((test: any, index: number) => (
                                 <TableRow key={index}>
                                     <TableCell>{test.name}</TableCell>
                                     <TableCell className="text-right">{test.price}</TableCell>

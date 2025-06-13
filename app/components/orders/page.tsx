@@ -1,7 +1,6 @@
 import {
     Table,
     TableBody,
-    TableCaption,
     TableCell,
     TableFooter,
     TableHead,
@@ -54,7 +53,7 @@ const invoices = [
     },
 ]
 
-export default function page() {
+export default function OrdersPage() {
     return (
         <div className="w-full">
             <h1 className="font-bold text-2xl mt-10 ">Order List</h1>

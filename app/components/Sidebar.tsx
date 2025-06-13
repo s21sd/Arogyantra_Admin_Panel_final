@@ -1,5 +1,5 @@
 "use client"
-import { AreaChart, Bot, Calendar, ChartArea, GitGraph, Home, Hospital, Inbox, LifeBuoy, Search, Settings, Wallet } from "lucide-react"
+import { Home, Hospital, ChartArea, Inbox, LifeBuoy, Settings, Wallet } from "lucide-react"
 
 import {
     Sidebar,
