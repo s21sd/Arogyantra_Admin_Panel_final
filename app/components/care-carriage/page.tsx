@@ -16,7 +16,7 @@ declare global {
         google?: typeof google;
     }
 }
-declare var google: any;
+declare let google: any;
 
 // Move interfaces to the top
 interface Hospital {
