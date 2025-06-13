@@ -231,7 +231,7 @@ const CareCarriagePage: React.FC = () => {
                     isCompleted: isCompleted,
                 });
             }
-        } catch (err) {
+        } catch {
             alert("Failed to update booking time or status in Firebase.");
         }
         // For now, just show the selected time in the correct format
@@ -720,9 +720,7 @@ const CareCarriagePage: React.FC = () => {
                                                 setAddressSearch(place.formatted_address);
                                             }
                                             if (place.geometry && place.geometry.location) {
-                                                const lat = place.geometry.location.lat();
-                                                const lng = place.geometry.location.lng();
-                                                setAddressSearchLatLng({ lat, lng });
+                                                setAddressSearchLatLng({ lat: place.geometry.location.lat(), lng: place.geometry.location.lng() });
                                             }
                                         });
                                     }
