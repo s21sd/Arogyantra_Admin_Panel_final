@@ -5,8 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ref, onValue, get, update } from "firebase/database";
+import { ref, onValue, get, update, push, set } from "firebase/database";
 import { database } from "../Firebase";
+import Script from "next/script";
+import dynamic from "next/dynamic";
 
 const CareCarriagePage = () => {
     const [activeTab, setActiveTab] = useState("orders");
@@ -34,6 +36,21 @@ const CareCarriagePage = () => {
     const [editBookingTime, setEditBookingTime] = useState<string>("");
     const [editBookingDate, setEditBookingDate] = useState<string>("");
     const [editStatus, setEditStatus] = useState<string>("pending");
+
+    // Add this state for Google Maps address
+    const [selectedAddress, setSelectedAddress] = useState("");
+    const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
+    const [showMap, setShowMap] = useState(false);
+    const [mapLatLng, setMapLatLng] = useState<{ lat: number; lng: number } | null>(null);
+    const [showMapModal, setShowMapModal] = useState(false);
+
+    // 1. Add a state for user's current location
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+    // Add state for address search modal
+    const [showAddressSearchModal, setShowAddressSearchModal] = useState(false);
+    const [addressSearch, setAddressSearch] = useState("");
+    const [addressSearchLatLng, setAddressSearchLatLng] = useState<{ lat: number; lng: number } | null>(null);
 
     useEffect(() => {
         const ccRef = ref(database, "landlord/cc/transactions");
@@ -85,6 +102,23 @@ const CareCarriagePage = () => {
         fetchHospitals();
     }, []);
 
+    // 2. Get user's current location on mount
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                    });
+                },
+                (error) => {
+                    // Optionally handle error
+                }
+            );
+        }
+    }, []);
+
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target as HTMLInputElement;
         if (type === "checkbox") {
@@ -107,35 +141,56 @@ const CareCarriagePage = () => {
             return;
         }
         try {
-            // Save to Firebase
+            // Save to Firebase with push and correct field format
             const hospitalsRef = ref(database, "care_carriage");
-            const newHospital = {
-                name: form.name,
-                address: form.address,
+            // Use push to generate a unique key
+            const newHospitalRef = push(hospitalsRef);
+            const hid = newHospitalRef.key;
+            const hospitalData = {
+                hid,
+                hospital_name: form.name,
+                hospital_address: form.address,
                 hospital_number: form.number,
-                hospital_open_time: form.openTime,
-                hospital_close_time: form.closeTime,
-                appointment_block_period_from: form.blockPeriodFrom,
-                appointment_block_period_to: form.blockPeriodTo,
-                coverage_area: form.coverageArea,
+                hospital_timing: `${formatTime(form.openTime)} - ${formatTime(form.closeTime)}`,
+                appointment_block_period: `${formatTime(form.blockPeriodFrom)} - ${formatTime(form.blockPeriodTo)}`,
+                coverage_area: `${form.coverageArea} Km`,
                 lat_log: form.latlog,
                 isOpen: form.isOpen,
             };
-            await update(hospitalsRef, {
-                [form.name + "_" + Date.now()]: newHospital
-            });
-            setHospitals((prev) => [
-                ...prev,
-                { id: `H${prev.length + 1}`, ...newHospital },
-            ]);
+            await set(newHospitalRef, hospitalData);
+            try {
+                const hospitalsSnapshot = await get(hospitalsRef);
+                if (hospitalsSnapshot.exists()) {
+                    const data = hospitalsSnapshot.val();
+                    const hospitalsArray = Object.keys(data).map((key) => ({
+                        id: key,
+                        ...data[key],
+                    }));
+                    setHospitals(hospitalsArray);
+                } else {
+                    setHospitals([]);
+                }
+            } catch (fetchErr) {
+                // Optionally handle fetch error
+            }
             setForm({ name: "", address: "", number: "", openTime: "", closeTime: "", blockPeriodFrom: "", blockPeriodTo: "", coverageArea: "", latlog: "", isOpen: true });
             setFormError("");
             setShowForm(false);
+            // Optionally, refresh hospitals list
         } catch (err) {
             setFormError("Failed to register hospital. Please try again.");
         }
     };
 
+    function formatTime(time: string) {
+        if (!time) return "";
+        const [hour, minute] = time.split(":");
+        let h = parseInt(hour, 10);
+        const ampm = h >= 12 ? "PM" : "AM";
+        h = h % 12;
+        if (h === 0) h = 12;
+        return `${h.toString().padStart(2, '0')}:${minute} ${ampm}`;
+    }
 
     async function updateBookingTimeWithStatus(id: string, newBookingTime: string, newStatus: string, newBookingDate: string) {
         // Use selected date and time
@@ -176,6 +231,22 @@ const CareCarriagePage = () => {
         // For now, just show the selected time in the correct format
         // alert(`Selected time (Flutter format): ${isoBookingTime}\nStatus: ${newStatus}`);
     }
+
+    // Google Maps handler
+    function handleAddressClick(address: string) {
+        setShowAddressSearchModal(true);
+        setAddressSearch("");
+        setAddressSearchLatLng(null);
+    }
+
+    const GoogleMapReact = dynamic(() => import('google-map-react'), { ssr: false });
+
+    // Map marker component
+    const MapMarker = ({ lat, lng }: { lat: number; lng: number }) => (
+        <div style={{ color: 'red', fontWeight: 'bold', fontSize: 24 }}>
+            •
+        </div>
+    );
 
     return (
         <div className="p-6 w-full">
@@ -427,18 +498,21 @@ const CareCarriagePage = () => {
                                         <div>
                                             <label className="block font-semibold mb-2 text-gray-800">Address</label>
                                             <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400 cursor-pointer"
                                                 type="text"
                                                 name="address"
                                                 value={form.address}
-                                                onChange={handleFormChange}
+                                                readOnly
                                                 required
                                                 minLength={5}
                                                 maxLength={200}
-                                                placeholder="Enter address"
+                                                placeholder="Select address from map"
+                                                onClick={() => {
+                                                    setShowForm(false);
+                                                    setTimeout(() => setShowAddressSearchModal(true), 200);
+                                                }}
                                             />
                                         </div>
-
                                         <div>
                                             <label className="block font-semibold mb-2 text-gray-800">Timing</label>
                                             <div className="flex gap-3 items-center">
@@ -532,10 +606,10 @@ const CareCarriagePage = () => {
                                                 type="text"
                                                 name="latlog"
                                                 value={form.latlog}
-                                                onChange={handleFormChange}
+                                                readOnly
                                                 required
                                                 pattern="^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$"
-                                                placeholder="e.g. 28.7041,77.1025"
+                                                placeholder="e.g. 28.7041,77.1025 (Select from map)"
                                             />
                                         </div>
                                         <div className="flex items-center gap-2 mt-6">
@@ -573,7 +647,9 @@ const CareCarriagePage = () => {
                                             <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
                                             {hosp.hospital_name || hosp.name}
                                         </CardTitle>
-                                        <div className="text-sm text-gray-500 mt-1">{hosp.hospital_address || hosp.address}</div>
+                                        <div className="text-sm text-gray-500 mt-1">
+                                            {hosp.hospital_address || hosp.address}
+                                        </div>
                                     </CardHeader>
                                     <CardContent className="space-y-2 text-gray-700">
                                         <div className="flex items-center gap-2"><span className="font-semibold">Number:</span> {hosp.hospital_number || "N/A"}</div>
@@ -595,6 +671,76 @@ const CareCarriagePage = () => {
                     )}
                 </TabsContent>
             </Tabs>
+
+            {/* Address Search Modal */}
+            {showAddressSearchModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full relative">
+                        <h3 className="text-lg font-bold mb-2">Search Address</h3>
+                        <div style={{ height: '400px', width: '100%', position: 'relative' }}>
+                            {/* Search box overlayed on the map */}
+                            <input
+                                id="address-search-input"
+                                className="absolute top-4 left-1/2 -translate-x-1/2 w-3/4 border border-blue-200 rounded-lg px-4 py-2 z-10 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white placeholder-gray-400 shadow"
+                                type="text"
+                                value={addressSearch}
+                                onChange={e => setAddressSearch(e.target.value)}
+                                placeholder="Search for a place"
+                                autoComplete="off"
+                                style={{ zIndex: 10 }}
+                            />
+                            <GoogleMapReact
+                                bootstrapURLKeys={{ key: 'AIzaSyDRADDlCkPQOHDyZeIcJ9nDCfmo94eo7Ig' }}
+                                defaultCenter={{ lat: 28.6139, lng: 77.2090 }}
+                                defaultZoom={12}
+                                center={addressSearchLatLng ? addressSearchLatLng : { lat: 28.6139, lng: 77.2090 }}
+                            >
+                                {addressSearchLatLng && <MapMarker lat={addressSearchLatLng.lat} lng={addressSearchLatLng.lng} />}
+                            </GoogleMapReact>
+                        </div>
+                        <div className="mt-4 flex justify-end gap-2">
+                            <Button type="button" onClick={() => {
+                                setShowAddressSearchModal(false);
+                                setTimeout(() => setShowForm(true), 200);
+                            }}>Cancel</Button>
+                            <Button type="button" onClick={() => {
+                                if (addressSearch && addressSearchLatLng) {
+                                    setForm(prev => ({ ...prev, address: addressSearch, latlog: `${addressSearchLatLng.lat},${addressSearchLatLng.lng}` }));
+                                    setSelectedAddress(addressSearch);
+                                    setSelectedLatLng(addressSearchLatLng);
+                                    setMapLatLng(addressSearchLatLng);
+                                    setShowAddressSearchModal(false);
+                                    setTimeout(() => setShowForm(true), 200);
+                                }
+                            }} disabled={!addressSearchLatLng}>Select</Button>
+                        </div>
+                        <Script
+                            src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyDRADDlCkPQOHDyZeIcJ9nDCfmo94eo7Ig&libraries=places`}
+                            strategy="afterInteractive"
+                            onLoad={() => {
+                                if ((window as any).google) {
+                                    const input = document.getElementById("address-search-input") as HTMLInputElement;
+                                    if (input) {
+                                        // Remove types: ["geocode"] to allow all places
+                                        const autocomplete = new (window as any).google.maps.places.Autocomplete(input);
+                                        autocomplete.addListener("place_changed", function () {
+                                            const place = autocomplete.getPlace();
+                                            if (place.formatted_address) {
+                                                setAddressSearch(place.formatted_address);
+                                            }
+                                            if (place.geometry && place.geometry.location) {
+                                                const lat = place.geometry.location.lat();
+                                                const lng = place.geometry.location.lng();
+                                                setAddressSearchLatLng({ lat, lng });
+                                            }
+                                        });
+                                    }
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
