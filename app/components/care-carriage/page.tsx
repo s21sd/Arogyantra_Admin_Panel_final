@@ -17,7 +17,6 @@ declare global {
     }
 }
 
-// Move interfaces to the top
 interface Hospital {
     id: string;
     hid?: string;
@@ -88,6 +87,9 @@ const CareCarriagePage: React.FC = () => {
     const [showAddressSearchModal, setShowAddressSearchModal] = useState<boolean>(false);
     const [addressSearch, setAddressSearch] = useState<string>("");
     const [addressSearchLatLng, setAddressSearchLatLng] = useState<{ lat: number; lng: number } | null>(null);
+    const [hospitalSearch, setHospitalSearch] = useState<string>("");
+    const [orderSearch, setOrderSearch] = useState<string>("");
+    const [shortLinkWarning, setShortLinkWarning] = useState<string>("");
 
     useEffect(() => {
         const ccRef = ref(database, "landlord/cc/transactions");
@@ -138,6 +140,22 @@ const CareCarriagePage: React.FC = () => {
         fetchHospitals();
     }, []);
 
+    // Helper to extract lat/lng from Google Maps links
+    function extractLatLngFromLink(link: string): string | null {
+        // Match for standard Google Maps link
+        const regex1 = /@([\d.\-]+),([\d.\-]+),/;
+        const match1 = link.match(regex1);
+        if (match1) {
+            return `${match1[1]},${match1[2]}`;
+        }
+        // Match for maps.app.goo.gl short links (fetch and parse)
+        if (link.includes('maps.app.goo.gl')) {
+            // We can't fetch from client due to CORS, so ask user to paste full link if not auto-detected
+            return null;
+        }
+        return null;
+    }
+
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target as HTMLInputElement;
         if (type === "checkbox") {
@@ -145,11 +163,31 @@ const CareCarriagePage: React.FC = () => {
                 ...prev,
                 [name]: (e.target as HTMLInputElement).checked,
             }));
+        } else if (name === "address") {
+            setForm((prev) => ({ ...prev, address: value }));
+            if (value.includes('maps.app.goo.gl')) {
+                setShortLinkWarning('Short Google Maps links cannot be parsed. Please open the link and copy the full Google Maps URL from your browser.');
+            } else {
+                setShortLinkWarning("");
+            }
         } else {
             setForm((prev) => ({
                 ...prev,
                 [name]: value,
             }));
+        }
+    };
+
+    const handleFetchLatLng = () => {
+        if (form.address.includes('maps.app.goo.gl')) {
+            setShortLinkWarning('Short Google Maps links cannot be parsed. Please open the link and copy the full Google Maps URL from your browser.');
+            return;
+        }
+        const latlng = extractLatLngFromLink(form.address);
+        if (latlng) {
+            setForm((prev) => ({ ...prev, latlog: latlng }));
+        } else {
+            alert('Could not extract lat/long. Please check the link or paste a full Google Maps link.');
         }
     };
 
@@ -173,6 +211,8 @@ const CareCarriagePage: React.FC = () => {
             const hospitalsRef = ref(database, "care_carriage");
             const newHospitalRef = push(hospitalsRef);
             const hid = newHospitalRef.key;
+            // Accepting orders logic: default to true if open, else false
+            const acceptingOrders = form.acceptingOrders !== undefined ? form.acceptingOrders : form.isOpen;
             const hospitalData = {
                 hid,
                 hospital_name: form.name,
@@ -183,6 +223,7 @@ const CareCarriagePage: React.FC = () => {
                 coverage_area: `${form.coverageArea} Km`,
                 lat_log: form.latlog,
                 isOpen: form.isOpen,
+                acceptingOrders,
             };
             await set(newHospitalRef, hospitalData);
             try {
@@ -265,6 +306,26 @@ const CareCarriagePage: React.FC = () => {
         </div>
     );
 
+    // Filter hospitals based on search
+    const filteredHospitals = hospitals.filter((hosp) => {
+        const term = hospitalSearch.toLowerCase();
+        return (
+            (hosp.hospital_name || hosp.name || "").toLowerCase().includes(term) ||
+            (hosp.id || "").toLowerCase().includes(term) ||
+            (hosp.hospital_number || hosp.number || "").toLowerCase().includes(term)
+        );
+    });
+
+    // Filter transactions based on search
+    const filteredTransactions = transactions.filter((tx) => {
+        const term = orderSearch.toLowerCase();
+        return (
+            (tx.transactionKey || tx.id || "").toLowerCase().includes(term) ||
+            (tx.userNumber || "").toLowerCase().includes(term) ||
+            (tx.status || "").toLowerCase().includes(term)
+        );
+    });
+
     return (
         <div className="p-6 w-full">
             <h1 className="text-2xl font-bold mb-4">Care Carriage</h1>
@@ -275,9 +336,19 @@ const CareCarriagePage: React.FC = () => {
                 </TabsList>
 
                 <TabsContent value="orders">
+                    <div className="flex w-full justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">Orders</h2>
+                        <input
+                            type="text"
+                            className="border border-gray-300 rounded-lg px-4 py-2 w-80 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm transition-all"
+                            placeholder="Search by Order ID, User Number, or Status"
+                            value={orderSearch}
+                            onChange={(e) => setOrderSearch(e.target.value)}
+                        />
+                    </div>
                     {loading ? (
                         <div className="text-center py-8">Loading transactions...</div>
-                    ) : transactions.length === 0 ? (
+                    ) : filteredTransactions.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <Image src="/file.svg" alt="No Data" width={96} height={96} className="w-24 h-24 mb-4 opacity-60" />
                             <div className="text-lg font-semibold text-gray-500">No transactions found.</div>
@@ -297,7 +368,7 @@ const CareCarriagePage: React.FC = () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {transactions.map((tx: Transaction, idx: number) => {
+                                    {filteredTransactions.map((tx: Transaction, idx: number) => {
                                         let arrivalTime = '-';
                                         if (typeof tx.arrivalTime === 'string' && tx.arrivalTime) {
                                             arrivalTime = tx.arrivalTime;
@@ -489,199 +560,222 @@ const CareCarriagePage: React.FC = () => {
                 <TabsContent value="hospitals">
                     <div className="flex w-full justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Hospitals</h2>
-                        <Dialog open={showForm} onOpenChange={setShowForm}>
-                            <DialogTrigger asChild>
-                                <Button onClick={() => setShowForm(true)}>Add Hospital</Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-4xl">
-                                <DialogHeader>
-                                    <DialogTitle>Register Hospital</DialogTitle>
-                                </DialogHeader>
-                                <form className="space-y-8" onSubmit={handleFormSubmit}>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Hospital Name</label>
-                                            <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
-                                                type="text"
-                                                name="name"
-                                                value={form.name}
-                                                onChange={handleFormChange}
-                                                required
-                                                minLength={2}
-                                                maxLength={100}
-                                                placeholder="Enter hospital name"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Address</label>
-                                            <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400 cursor-pointer"
-                                                type="text"
-                                                name="address"
-                                                value={form.address}
-                                                readOnly
-                                                required
-                                                minLength={5}
-                                                maxLength={200}
-                                                placeholder="Select address from map"
-                                                onClick={() => {
-                                                    setShowForm(false);
-                                                    setTimeout(() => setShowAddressSearchModal(true), 200);
-                                                }}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Timing</label>
-                                            <div className="flex gap-3 items-center">
-                                                <div className="flex flex-col flex-1">
-                                                    <span className="text-xs text-gray-500 mb-1">Open</span>
-                                                    <input
-                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
-                                                        type="time"
-                                                        name="openTime"
-                                                        value={form.openTime || ''}
-                                                        onChange={handleFormChange}
-                                                        required
-                                                    />
-                                                </div>
-                                                <span className="mx-1 text-gray-500 font-bold">to</span>
-                                                <div className="flex flex-col flex-1">
-                                                    <span className="text-xs text-gray-500 mb-1">Close</span>
-                                                    <input
-                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
-                                                        type="time"
-                                                        name="closeTime"
-                                                        value={form.closeTime || ''}
-                                                        onChange={handleFormChange}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Block Period</label>
-                                            <div className="flex gap-3 items-center">
-                                                <div className="flex flex-col flex-1">
-                                                    <span className="text-xs text-gray-500 mb-1">From</span>
-                                                    <input
-                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
-                                                        type="time"
-                                                        name="blockPeriodFrom"
-                                                        value={form.blockPeriodFrom || ''}
-                                                        onChange={handleFormChange}
-                                                        required
-                                                    />
-                                                </div>
-                                                <span className="mx-1 text-gray-500 font-bold">to</span>
-                                                <div className="flex flex-col flex-1">
-                                                    <span className="text-xs text-gray-500 mb-1">To</span>
-                                                    <input
-                                                        className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
-                                                        type="time"
-                                                        name="blockPeriodTo"
-                                                        value={form.blockPeriodTo || ''}
-                                                        onChange={handleFormChange}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
+                        <div className="flex items-center gap-4">
 
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Coverage Area (km)</label>
-                                            <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
-                                                type="number"
-                                                name="coverageArea"
-                                                value={form.coverageArea}
-                                                onChange={handleFormChange}
-                                                required
-                                                min={1}
-                                                max={1000}
-                                                placeholder="e.g. 10"
-                                            />
+                            <input
+                                type="text"
+                                className="border border-gray-300 rounded-lg px-4 py-2 w-80 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm transition-all"
+                                placeholder="Search by Name, Hospital ID, or Number"
+                                value={hospitalSearch}
+                                onChange={(e) => setHospitalSearch(e.target.value)}
+                            />
+                            <Dialog open={showForm} onOpenChange={setShowForm}>
+                                <DialogTrigger asChild>
+                                    <Button onClick={() => setShowForm(true)}>Add Hospital</Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl">
+                                    <DialogHeader>
+                                        <DialogTitle>Register Hospital</DialogTitle>
+                                    </DialogHeader>
+                                    <form className="space-y-8" onSubmit={handleFormSubmit}>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Hospital Name</label>
+                                                <input
+                                                    className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                    type="text"
+                                                    name="name"
+                                                    value={form.name}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    minLength={2}
+                                                    maxLength={100}
+                                                    placeholder="Enter hospital name"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Address (Paste Google Maps Link)</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                        type="text"
+                                                        name="address"
+                                                        value={form.address}
+                                                        onChange={handleFormChange}
+                                                        required
+                                                        minLength={5}
+                                                        maxLength={200}
+                                                        placeholder="Paste Google Maps link here"
+                                                    />
+                                                    <Button type="button" onClick={handleFetchLatLng}
+                                                        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-all"
+                                                    >Fetch Lat/Long</Button>
+                                                </div>
+                                                {shortLinkWarning && <div className="text-red-500 text-xs mt-1">{shortLinkWarning}</div>}
+                                            </div>
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Timing</label>
+                                                <div className="flex gap-3 items-center">
+                                                    <div className="flex flex-col flex-1">
+                                                        <span className="text-xs text-gray-500 mb-1">Open</span>
+                                                        <input
+                                                            className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                            type="time"
+                                                            name="openTime"
+                                                            value={form.openTime || ''}
+                                                            onChange={handleFormChange}
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <span className="mx-1 text-gray-500 font-bold">to</span>
+                                                    <div className="flex flex-col flex-1">
+                                                        <span className="text-xs text-gray-500 mb-1">Close</span>
+                                                        <input
+                                                            className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                            type="time"
+                                                            name="closeTime"
+                                                            value={form.closeTime || ''}
+                                                            onChange={handleFormChange}
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Block Period</label>
+                                                <div className="flex gap-3 items-center">
+                                                    <div className="flex flex-col flex-1">
+                                                        <span className="text-xs text-gray-500 mb-1">From</span>
+                                                        <input
+                                                            className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                            type="time"
+                                                            name="blockPeriodFrom"
+                                                            value={form.blockPeriodFrom || ''}
+                                                            onChange={handleFormChange}
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <span className="mx-1 text-gray-500 font-bold">to</span>
+                                                    <div className="flex flex-col flex-1">
+                                                        <span className="text-xs text-gray-500 mb-1">To</span>
+                                                        <input
+                                                            className="w-full border border-blue-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50"
+                                                            type="time"
+                                                            name="blockPeriodTo"
+                                                            value={form.blockPeriodTo || ''}
+                                                            onChange={handleFormChange}
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Coverage Area (km)</label>
+                                                <input
+                                                    className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                    type="number"
+                                                    name="coverageArea"
+                                                    value={form.coverageArea}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    min={1}
+                                                    max={1000}
+                                                    placeholder="e.g. 10"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Number</label>
+                                                <input
+                                                    className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                    type="number"
+                                                    name="number"
+                                                    value={form.number}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    minLength={10}
+                                                    maxLength={15}
+                                                    pattern="[0-9]+"
+                                                    placeholder="Enter contact number"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block font-semibold mb-2 text-gray-800">Lat/Long</label>
+                                                <input
+                                                    className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
+                                                    type="text"
+                                                    name="latlog"
+                                                    value={form.latlog}
+                                                    readOnly
+                                                    required
+                                                    placeholder="Auto-filled from Google Maps link"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-6">
+                                                <input
+                                                    type="checkbox"
+                                                    name="isOpen"
+                                                    checked={form.isOpen}
+                                                    onChange={handleFormChange}
+                                                    className="accent-blue-600"
+                                                />
+                                                <label className="font-medium">Open</label>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <input
+                                                    type="checkbox"
+                                                    name="acceptingOrders"
+                                                    checked={form.acceptingOrders ?? true}
+                                                    onChange={e => setForm(prev => ({ ...prev, acceptingOrders: e.target.checked }))
+                                                    }
+                                                    className="accent-green-600"
+                                                />
+                                                <label className="font-medium">Accepting Orders</label>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Number</label>
-                                            <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
-                                                type="number"
-                                                name="number"
-                                                value={form.number}
-                                                onChange={handleFormChange}
-                                                required
-                                                minLength={10}
-                                                maxLength={15}
-                                                pattern="[0-9]+"
-                                                placeholder="Enter contact number"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block font-semibold mb-2 text-gray-800">Lat/Long</label>
-                                            <input
-                                                className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-blue-50 placeholder-gray-400"
-                                                type="text"
-                                                name="latlog"
-                                                value={form.latlog}
-                                                readOnly
-                                                required
-                                                pattern="^-?\d{1,3}\.\d+,-?\d{1,3}\.\d+$"
-                                                placeholder="e.g. 28.7041,77.1025 (Select from map)"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-6">
-                                            <input
-                                                type="checkbox"
-                                                name="isOpen"
-                                                checked={form.isOpen}
-                                                onChange={handleFormChange}
-                                                className="accent-blue-600"
-                                            />
-                                            <label className="font-medium">Open</label>
-                                        </div>
-                                    </div>
-                                    {formError && <div className="text-red-500 text-sm">{formError}</div>}
-                                    <Button type="submit" className="w-full">Register</Button>
-                                </form>
-                            </DialogContent>
-                        </Dialog>
+                                        {formError && <div className="text-red-500 text-sm">{formError}</div>}
+                                        <Button type="submit" className="w-full">Register</Button>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     </div>
                     {hospitalsLoading ? (
                         <div className="text-center py-8">Loading hospitals...</div>
                     ) : hospitalsError ? (
                         <div className="text-center text-red-500 py-8">{hospitalsError}</div>
-                    ) : hospitals.length === 0 ? (
+                    ) : filteredHospitals.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16">
                             <Image src="/globe.svg" alt="No Hospitals" width={96} height={96} className="w-24 h-24 mb-4 opacity-60" />
                             <div className="text-lg font-semibold text-gray-500">No hospitals found.</div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                            {hospitals.map((hosp) => (
-                                <Card key={hosp.id} className="shadow-xl border-0 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl hover:scale-[1.02] hover:shadow-2xl transition-transform duration-200">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-xl font-bold text-blue-900 flex items-center gap-2">
-                                            <span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>
+                            {filteredHospitals.map((hosp) => (
+                                <Card key={hosp.id} className="shadow-xl border-0 bg-gradient-to-br from-blue-100 to-blue-300 rounded-2xl hover:scale-[1.03] hover:shadow-2xl transition-transform duration-200 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 m-4">
+                                        {hosp.isOpen ? (
+                                            <span className="px-3 py-1 rounded-full bg-green-500 text-white text-xs font-bold shadow">Open</span>
+                                        ) : (
+                                            <span className="px-3 py-1 rounded-full bg-red-500 text-white text-xs font-bold shadow">Closed</span>
+                                        )}
+                                    </div>
+                                    <CardHeader className="pb-2 flex flex-col items-start gap-2">
+                                        <CardTitle className="text-2xl font-extrabold text-blue-900 flex items-center gap-2">
+                                            <span className="inline-block w-3 h-3 rounded-full bg-blue-400"></span>
                                             {hosp.hospital_name || hosp.name}
                                         </CardTitle>
-                                        <div className="text-sm text-gray-500 mt-1">
+                                        <div className="text-base text-gray-600 font-medium flex items-center gap-2">
+                                            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 12.414a4 4 0 10-5.657 5.657l4.243 4.243a8 8 0 1011.314-11.314l-4.243 4.243a4 4 0 00-5.657 5.657z" /></svg>
                                             {hosp.hospital_address || hosp.address}
                                         </div>
                                     </CardHeader>
-                                    <CardContent className="space-y-2 text-gray-700">
-                                        <div className="flex items-center gap-2"><span className="font-semibold">Number:</span> {hosp.hospital_number || "N/A"}</div>
-                                        <div className="flex items-center gap-2"><span className="font-semibold">Timing:</span> {hosp.hospital_timing || "N/A"}</div>
-                                        <div className="flex items-center gap-2"><span className="font-semibold">Block Period:</span> {hosp.appointment_block_period || "N/A"}</div>
-                                        <div className="flex items-center gap-2"><span className="font-semibold">Coverage Area:</span> {hosp.coverage_area || "N/A"}</div>
+                                    <CardContent className="space-y-3 text-gray-700 text-base font-medium">
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-blue-800">Number:</span> {hosp.hospital_number || hosp.number || "N/A"}</div>
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-blue-800">Timing:</span> {hosp.hospital_timing || "N/A"}</div>
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-blue-800">Block Period:</span> {hosp.appointment_block_period || "N/A"}</div>
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-blue-800">Coverage Area:</span> {hosp.coverage_area || "N/A"}</div>
                                         {/* <div className="flex items-center gap-2"><span className="font-semibold">Lat/Long:</span> {hosp.lat_log || "N/A"}</div> */}
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold">Status:</span> {hosp.isOpen ? (
-                                                <span className="ml-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold shadow">Open</span>
-                                            ) : (
-                                                <span className="ml-2 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold shadow">Closed</span>
-                                            )}
-                                        </div>
                                     </CardContent>
                                 </Card>
                             ))}

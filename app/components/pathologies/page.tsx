@@ -28,6 +28,7 @@ const PathologyPage = () => {
     const [pathologies, setPathologies] = useState<Pathology[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [search, setSearch] = useState<string>("");
     const router = useRouter();
 
     useEffect(() => {
@@ -57,15 +58,34 @@ const PathologyPage = () => {
         return () => unsubscribe();
     }, []);
 
+    // Filter pathologies based on search
+    const filteredPathologies = pathologies.filter((p) => {
+        const term = search.toLowerCase();
+        return (
+            p.path_name?.toLowerCase().includes(term) ||
+            p.id?.toLowerCase().includes(term) ||
+            p.path_phoneNo?.toLowerCase().includes(term)
+        );
+    });
+
     if (loading) return <div className="text-center text-lg font-semibold">Loading...</div>;
     if (error) return <div className="text-red-500 text-center">{error}</div>;
     if (pathologies.length === 0) return <div className="text-center">No verified pathology data available.</div>;
 
     return (
         <div className="p-6 space-y-6 w-full">
-            <h1 className="text-3xl font-bold">Pathologies</h1>
-            <div className="flex justify-center w-full items-center mx-auto overflow-x-auto rounded-lg shadow-lg border border-gray-200">
-                <Table className=" bg-white">
+            <div className="flex flex-row items-center justify-between mb-6">
+                <h1 className="text-3xl font-bold">Pathologies</h1>
+                <input
+                    type="text"
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-80 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm transition-all"
+                    placeholder="Search by Name, Path ID, or Phone No"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
+            </div>
+            <div className="flex justify-center w-full items-center mx-auto overflow-x-auto rounded-lg shadow-lg border border-gray-200 bg-white">
+                <Table className="w-full">
                     <TableHeader className="bg-gray-100">
                         <TableRow className="text-left text-gray-700">
                             <TableHead className="p-4 font-semibold">Name</TableHead>
@@ -78,7 +98,7 @@ const PathologyPage = () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {pathologies.map((pathology: Pathology, index: number) => (
+                        {filteredPathologies.map((pathology: Pathology, index: number) => (
                             <TableRow key={pathology.id} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                                 <TableCell className="p-4 font-medium">{pathology.path_name || "Unknown Name"}</TableCell>
                                 <TableCell className="p-4">{pathology.path_phoneNo || "N/A"}</TableCell>

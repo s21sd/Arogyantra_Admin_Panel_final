@@ -1,5 +1,5 @@
 "use client"
-import { Home, Hospital, ChartArea, Inbox, LifeBuoy, Settings, Wallet } from "lucide-react"
+import { Home, ListTree, Hospital, ChartArea, Inbox, LifeBuoy, Settings, Wallet } from "lucide-react"
 
 import {
     Sidebar,
@@ -39,6 +39,11 @@ const items = [
         title: "Services",
         url: "/components/services",
         icon: ChartArea,
+    },
+    {
+        title: "Transactions",
+        url: "/components/transactions",
+        icon: ListTree,
     },
     {
         title: "Wallet",
